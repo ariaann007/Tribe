@@ -1,0 +1,9 @@
+{% extends "hr/base.html" %}
+{% block title %}Not available{% endblock %}
+{% block content %}
+<div class="card" style="max-width:520px;margin:40px auto">
+  <h1>Not available</h1>
+  <p class="sub">You don't have access to this page.</p>
+  <a class="btn" href="{% url 'home' %}">Go to my home page</a>
+</div>
+{% endblock %}

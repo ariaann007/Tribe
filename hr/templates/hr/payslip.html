@@ -1,0 +1,39 @@
+{% extends "hr/base.html" %}
+{% load hr_extras %}
+{% block title %}Payslip {{ slip.run.period_end|date:"M Y" }}{% endblock %}
+{% block content %}
+<div class="actions no-print" style="justify-content:space-between;margin-bottom:12px">
+  <a href="{% if nav_is_admin %}{% url 'payslip_edit' slip.pk %}{% else %}{% url 'me' %}{% endif %}">← Back</a>
+  <button class="btn" onclick="window.print()">Print / save as PDF</button>
+</div>
+{% if slip.status != 'published' %}
+  <div class="alert no-print {% if slip.status == 'superseded' %}info{% endif %}">
+    {% if slip.status == 'superseded' %}This payslip was replaced by a corrected version.{% else %}Preview only. The employee can't see this until it is approved and published.{% endif %}
+  </div>
+{% endif %}
+<div class="payslip">
+  <table>
+    <tr><td colspan="4" class="company">{{ company.name }}</td></tr>
+    <tr><td colspan="2">{{ company.address_lines.0 }}<br>{{ company.address_lines.1 }}</td><td colspan="2" class="logo-cell">D<span>E</span>NIZNS</td></tr>
+    <tr><td colspan="4">Email: {{ company.email }}</td></tr>
+    <tr><td colspan="4" class="title">PAYSLIP FOR THE MONTH ENDING {{ slip.run.period_end|date:"j F Y"|upper }}</td></tr>
+    {% if slip.version > 1 %}<tr><td colspan="4" class="version-note">Corrected payslip (version {{ slip.version }}). This replaces the earlier payslip for this month.</td></tr>{% endif %}
+    <tr><td class="k">Employee ID :</td><td>{{ slip.employee_code }}</td><td class="k">Business Unit :</td><td>{{ slip.business_unit }}</td></tr>
+    <tr><td class="k">Employee Name :</td><td>{{ slip.employee_name }}</td><td class="k">Department :</td><td>{{ slip.department }}</td></tr>
+    <tr><td class="k">UAN Number :</td><td>{{ slip.uan }}</td><td class="k">Designation :</td><td>{{ slip.designation }}</td></tr>
+    <tr><td class="k">Aadhaar Number :</td><td>{% if slip.aadhaar_last4 %}XXXX XXXX {{ slip.aadhaar_last4 }}{% endif %}</td><td class="k">PAN Number :</td><td>{{ slip.pan }}</td></tr>
+    <tr><td class="k">Insurance Number :</td><td>{{ slip.esic_ip_number }}</td><td class="k">Paid Leave Remaining :</td><td>{{ slip.leave_balance_after|days }}</td></tr>
+    <tr><td class="k">Total Working Days :</td><td>23</td><td class="k">Paid Leaves :</td><td>{{ slip.paid_leave_applied|days }}</td></tr>
+    <tr><td class="k">Pay period :</td><td>{{ slip.run.period_start|date:"d/m/Y" }} – {{ slip.run.period_end|date:"d/m/Y" }}</td><td class="k">LOP Days :</td><td>{{ slip.lop_days|days }}</td></tr>
+    <tr><td class="head">EARNINGS</td><td class="head amt">AMOUNT</td><td class="head">DEDUCTIONS</td><td class="head amt">AMOUNT</td></tr>
+    <tr><td>Gross Pay</td><td class="amt">{{ slip.basic|inr }}</td><td>LOP</td><td class="amt">{{ slip.lop_amount|inr }}</td></tr>
+    <tr><td>Incentives</td><td class="amt">{{ slip.incentives|inr }}</td><td>PF</td><td class="amt">{{ slip.pf_employee|inr }}</td></tr>
+    <tr><td>Bonus</td><td class="amt">{{ slip.bonus|inr }}</td><td>ESIC</td><td class="amt">{{ slip.esic_employee|inr }}</td></tr>
+    <tr><td>Over Time</td><td class="amt">{{ slip.overtime|inr }}</td><td>Advance Recovery</td><td class="amt">{{ slip.advance_recovery|inr }}</td></tr>
+    <tr><td>Other Additions</td><td class="amt">{{ slip.other_additions|inr }}</td><td>Other Deductions{% if slip.other_deductions_note %} ({{ slip.other_deductions_note }}){% endif %}</td><td class="amt">{{ slip.other_deductions|inr }}</td></tr>
+    <tr><td><strong>Total Earnings</strong></td><td class="amt"><strong>{{ slip.total_earnings|inr }}</strong></td><td><strong>Total Deductions</strong></td><td class="amt"><strong>{{ slip.total_deductions|inr }}</strong></td></tr>
+    <tr><td colspan="2"></td><td><strong>Net Salary</strong></td><td class="amt"><strong>{{ slip.net_pay|inr }}</strong></td></tr>
+    <tr><td colspan="4" class="foot">***This is an electronically generated document, does not require signature***</td></tr>
+  </table>
+</div>
+{% endblock %}

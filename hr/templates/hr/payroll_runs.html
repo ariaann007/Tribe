@@ -1,0 +1,28 @@
+{% extends "hr/base.html" %}
+{% load hr_extras %}
+{% block title %}Payroll{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Payroll</h1><p class="sub">India staff. Each pay period runs from the 26th to the 25th.</p></div></div>
+
+<div class="card">
+  <h2>Start a new payroll run</h2>
+  <form method="post" class="actions">
+    {% csrf_token %}
+    <label for="id_month">{{ form.month.label }}</label> {{ form.month }} {{ form.year }}
+    <button class="btn" type="submit">Create drafts</button>
+  </form>
+  <p class="muted" style="font-size:13px;margin-bottom:0">This creates a draft payslip for every India employee in the period, using approved leave and current salary records.</p>
+</div>
+
+<div class="card">
+  <h2>Runs</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Period</th><th class="num">Payslips</th><th class="num">Net pay</th><th class="num">Cost to company</th></tr></thead>
+    <tbody>
+    {% for run, t in runs %}
+      <tr><td><a href="{% url 'payroll_run' run.pk %}">{{ run.label }}</a></td><td class="num">{{ t.published }}/{{ t.count }} published</td><td class="num">₹{{ t.net|inr:0 }}</td><td class="num">₹{{ t.cost|inr:0 }}</td></tr>
+    {% empty %}<tr><td colspan="4" class="muted">No runs yet.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

@@ -1,0 +1,125 @@
+# Denizns Tribe: internal HR system
+
+Phase 1 of the Denizns internal HR system. It covers UK and India staff. India staff get full HR and payroll; UK staff are a directory only.
+
+| Who | What they can do |
+|---|---|
+| **Admin** | Everything: staff records, salary history, payroll, approving and publishing payslips, the cost dashboard, the audit log |
+| **Team lead** | Approve leave for their own team and see the team list. **No salary figures.** |
+| **Employee** | See their own details, leave balance and published payslips, and request leave. Nothing about anyone else. |
+
+Phase 2 (not built yet): performance tracking.
+
+## Running it on this computer
+
+Open a terminal in this folder.
+
+```bash
+.venv/Scripts/python manage.py runserver
+```
+
+Then go to http://127.0.0.1:8000.
+
+The database currently holds **fictional demo data**. The demo logins are `admin`, `teamlead` and `staff`, and their passwords are in `hr/management/commands/seed_demo.py`. Each one has to set a new password on first login.
+
+To start again with fresh demo data, delete `db.sqlite3`, then run:
+
+```bash
+.venv/Scripts/python manage.py migrate
+```
+
+```bash
+.venv/Scripts/python manage.py seed_demo
+```
+
+To run the tests:
+
+```bash
+.venv/Scripts/python manage.py test hr
+```
+
+## Setting up with real staff
+
+1. Delete `db.sqlite3` and run `migrate`. Don't run `seed_demo`.
+2. Create your own admin login with `.venv/Scripts/python manage.py createsuperuser`.
+3. Log in and go to **Staff → Departments**. Add each department for both offices.
+4. Add each employee under **Staff → Add employee**. For India staff, set:
+   - their Basic salary
+   - whether they're enrolled in PF and ESIC
+   - UAN, PAN and ESIC insurance number
+   - their **paid leave balance at go-live**
+5. Set each India employee's **team lead**, and give the team lead the *Team lead* role.
+6. On each employee's page, use **Create login** to set a temporary password, and give it to them privately. They must change it the first time they log in.
+
+## Running payroll each month
+
+1. **Payroll → Start a new run**, then pick the month the period ends in. For example, *September* means 26 Aug – 25 Sep.
+2. The system creates a draft payslip for every India employee, using approved leave and current salary.
+3. For each person, open the payslip and confirm:
+   - how many leave days are paid (it suggests as many as their balance allows)
+   - bonus, incentives, overtime and other additions
+   - advance recovery (suggested automatically) and other deductions
+4. Check the calculation, then **Approve**.
+5. On the run page, **Publish approved**. Only then can employees see their payslips. Published payslips are locked.
+6. If a published payslip is wrong, use **Issue correction**. This creates version 2, and the original stays on record.
+
+If leave or salary changes after a payslip is approved, publishing is blocked for that person until you unapprove it and review it.
+
+## Payroll rules (in `hr/payroll.py`)
+
+These were agreed in discussion and checked against the August 2026 salary sheet and the September 2026 payslip.
+
+| Rule | Value |
+|---|---|
+| Pay period | 26th to 25th |
+| Salary | Basic only |
+| Working days | 23 every month |
+| Paid leave | 1.5 days per month. Unused leave carries over with no cap. |
+| Unpaid leave (LOP) | Basic ÷ 23 × (leave taken − paid leave applied) |
+| PF | 12% of Basic after unpaid leave, wage capped at ₹15,000 (max ₹1,800). Employer pays the same. Only for staff marked *enrolled*. |
+| ESIC | 0.75% employee and 3.25% employer, on Basic after unpaid leave. Applies to enrolled staff whose Basic was ₹21,000 or less at the start of the ESIC period (Apr–Sep, Oct–Mar). **Rounded up to the next rupee.** To keep paise, set `ESIC_ROUND_UP = False`. |
+| Bonus, incentives, overtime | Paid in full and not included in the PF/ESIC wage (as in the existing sheet) |
+| Professional Tax, TDS | Not deducted. The dashboard warns when someone's annual salary nears ₹12 lakh. |
+| Mid-period joiners and leavers | "Days not employed" is pre-filled and charged like unpaid days |
+
+### Assumptions to confirm with your accountant
+
+- **ESIC during probation:** the system warns about anyone earning ₹21,000 or less who isn't enrolled. The law normally requires ESIC from day one.
+- **Professional Tax in Kerala:** the Calicut corporation normally levies it. Not built in yet.
+- **Overtime and incentives in the ESIC wage:** ESIC rules usually count them. The system follows the old sheet and leaves them out.
+- **Leave accrual for new joiners:** they get the full 1.5 days in their first month.
+
+## Data protection
+
+- Passwords are hashed. Sessions end after 8 hours or when the browser closes.
+- Each person sees only their own data. Team leads see no pay figures.
+- Only the last 4 digits of Aadhaar are stored.
+- UK salaries are not stored at all.
+- Every change to staff records, payroll and leave is written to the audit log.
+
+## Going live
+
+For 20–30 users, a small cloud server is enough, for example Railway, Render, or a UK/EU VPS with PostgreSQL. Before going live:
+
+1. Set the environment variables:
+   - `DJANGO_DEBUG=0`
+   - `DJANGO_SECRET_KEY` (a long random string)
+   - `DJANGO_ALLOWED_HOSTS` (your domain)
+   - `DJANGO_CSRF_TRUSTED_ORIGINS` (`https://your-domain`)
+   - `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`
+2. Run `pip install psycopg[binary] gunicorn` and serve with `gunicorn config.wsgi`. Use HTTPS only.
+3. Run `python manage.py collectstatic` and `python manage.py migrate`.
+4. Set up **daily database backups**.
+5. **Data crossing borders:** India staff data will be stored outside India, and UK staff data may be stored outside the UK. Under UK GDPR and India's DPDP Act, tell staff where their data is held. If UK data will be processed in India, put an International Data Transfer Agreement (IDTA) in place.
+
+## Project layout
+
+```
+config/           Django settings and URLs
+hr/payroll.py     Payroll rules (pure functions, fully tested)
+hr/services.py    Payroll runs, leave balances, warnings, dashboard figures
+hr/models.py      Data model: employees, dated salary/role history, leave, advances, payslips, audit log
+hr/views.py       Screens
+hr/templates/     Pages, including the payslip layout
+hr/tests/         Tests (payroll maths, permissions, full monthly flow)
+```

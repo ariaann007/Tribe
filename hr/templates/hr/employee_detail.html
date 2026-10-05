@@ -1,0 +1,107 @@
+{% extends "hr/base.html" %}
+{% load hr_extras %}
+{% block title %}{{ e.full_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ e.full_name }}</h1>
+    <p class="sub">{{ e.employee_code }} · {{ e.designation }} · {{ e.get_office_display }}{% if e.on_probation %} · <span class="badge pending">Probation until {{ e.probation_end_date|date:"d M Y" }}</span>{% endif %}</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="{% url 'employment_change_new' e.pk %}">Record pay / role change</a>
+    <a class="btn secondary" href="{% url 'employee_edit' e.pk %}">Edit details</a>
+    {% if e.user_id %}<a class="btn secondary" href="{% url 'employee_password_reset' e.pk %}">Reset password</a>
+    {% else %}<a class="btn secondary" href="{% url 'employee_login_create' e.pk %}">Create login</a>{% endif %}
+  </div>
+</div>
+
+{% if e.is_india %}
+<div class="stats">
+  <div class="stat"><div class="label">Monthly Basic</div><div class="value">₹{{ current_basic|inr:0 }}</div></div>
+  <div class="stat"><div class="label">Paid leave balance</div><div class="value">{{ balance|days }} days</div><div class="note">After last payslip</div></div>
+  <div class="stat"><div class="label">Advance outstanding</div><div class="value">₹{{ advance_outstanding|inr:0 }}</div></div>
+  <div class="stat"><div class="label">Next work anniversary</div><div class="value" style="font-size:18px">{{ anniversary.0|date:"d M Y" }}</div><div class="note">{{ anniversary.1 }} year{{ anniversary.1|pluralize }}</div></div>
+</div>
+{% endif %}
+
+<div class="grid two">
+  <div class="card">
+    <h2>Details</h2>
+    <dl class="details">
+      <dt>Email</dt><dd>{{ e.email|default:"—" }}</dd>
+      <dt>Phone</dt><dd>{{ e.phone|default:"—" }}</dd>
+      <dt>Department</dt><dd>{{ e.department.name|default:"—" }}</dd>
+      <dt>Business unit</dt><dd>{{ e.business_unit|default:"—" }}</dd>
+      <dt>Team lead</dt><dd>{{ e.team_lead.full_name|default:"—" }}</dd>
+      <dt>System role</dt><dd>{{ e.get_role_display }}</dd>
+      <dt>Joined</dt><dd>{{ e.date_joined|date:"d M Y" }}</dd>
+      {% if e.date_left %}<dt>Left</dt><dd>{{ e.date_left|date:"d M Y" }}</dd>{% endif %}
+      <dt>Login</dt><dd>{% if e.user_id %}{{ e.user.username }}{% else %}None{% endif %}</dd>
+    </dl>
+  </div>
+  {% if e.is_india %}
+  <div class="card">
+    <h2>Statutory</h2>
+    <dl class="details">
+      <dt>PF</dt><dd>{% if e.pf_enrolled %}Enrolled{% else %}Not enrolled{% endif %}</dd>
+      <dt>UAN</dt><dd>{{ e.uan|default:"—" }}</dd>
+      <dt>ESIC</dt><dd>{% if e.esic_enrolled %}Enrolled{% else %}Not enrolled{% endif %}</dd>
+      <dt>ESIC insurance no.</dt><dd>{{ e.esic_ip_number|default:"—" }}</dd>
+      <dt>PAN</dt><dd>{{ e.pan|default:"—" }}</dd>
+      <dt>Aadhaar</dt><dd>{% if e.aadhaar_last4 %}XXXX XXXX {{ e.aadhaar_last4 }}{% else %}—{% endif %}</dd>
+    </dl>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Employment history</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>From</th><th>Designation</th><th>Department</th><th class="num">Weekly hours</th>{% if e.is_india %}<th class="num">Monthly Basic</th>{% endif %}<th>Reason</th><th>Recorded by</th></tr></thead>
+    <tbody>
+    {% for r in records %}
+      <tr><td>{{ r.effective_from|date:"d M Y" }}</td><td>{{ r.designation }}</td><td>{{ r.department.name|default:"" }}</td><td class="num">{{ r.weekly_hours|default:"" }}</td>{% if e.is_india %}<td class="num">₹{{ r.basic_monthly|inr:0 }}</td>{% endif %}<td>{{ r.reason }}</td><td class="muted">{{ r.created_by.username|default:"" }}</td></tr>
+    {% empty %}
+      <tr><td colspan="7" class="muted">No records.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+{% if e.is_india %}
+<div class="grid two">
+  <div class="card">
+    <h2>Payslips</h2>
+    <table>
+      <tbody>
+      {% for p in payslips %}
+        <tr><td><a href="{% url 'payslip_edit' p.pk %}">{{ p.run.label }}</a>{% if p.version > 1 %} <span class="muted">v{{ p.version }}</span>{% endif %}</td><td><span class="badge {{ p.status }}">{{ p.get_status_display }}</span></td><td class="num">₹{{ p.net_pay|inr }}</td></tr>
+      {% empty %}<tr><td class="muted">No payslips yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h2>Leave</h2>
+    <table>
+      <tbody>
+      {% for l in leave %}
+        <tr><td>{{ l.start_date|date:"d M" }}{% if l.end_date != l.start_date %} – {{ l.end_date|date:"d M Y" }}{% else %} {{ l.start_date|date:"Y" }}{% endif %}</td><td class="num">{{ l.days|days }} day{{ l.days|pluralize }}</td><td><span class="badge {{ l.status }}">{{ l.get_status_display }}</span></td></tr>
+      {% empty %}<tr><td class="muted">No leave recorded.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="page-head" style="margin:0 0 8px"><h2>Advances and loans</h2><a class="btn small secondary" href="{% url 'advance_new' e.pk %}">Record an advance</a></div>
+  <table>
+    <thead><tr><th>Date</th><th class="num">Amount</th><th class="num">Monthly recovery</th><th>Note</th></tr></thead>
+    <tbody>
+    {% for a in advances %}
+      <tr><td>{{ a.date_given|date:"d M Y" }}</td><td class="num">₹{{ a.amount|inr }}</td><td class="num">₹{{ a.monthly_recovery|inr }}</td><td>{{ a.note }}</td></tr>
+    {% empty %}<tr><td colspan="4" class="muted">None.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

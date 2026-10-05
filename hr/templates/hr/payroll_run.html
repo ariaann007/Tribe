@@ -1,0 +1,53 @@
+{% extends "hr/base.html" %}
+{% load hr_extras %}
+{% block title %}Payroll {{ run.label }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Payroll: {{ run.label }}</h1>
+    <p class="sub">
+      {{ counts.draft }} need input · {{ counts.ready }} ready for approval · {{ counts.approved }} approved · {{ counts.published }} published
+    </p>
+  </div>
+  <form method="post" class="actions">
+    {% csrf_token %}
+    <button class="btn secondary" name="action" value="refresh" type="submit">Refresh drafts</button>
+    <button class="btn" name="action" value="publish" type="submit" {% if not counts.approved %}disabled{% endif %}
+      onclick="return confirm('Publish {{ counts.approved }} approved payslip(s)? Employees will see them and they will be locked.')">Publish approved ({{ counts.approved }})</button>
+  </form>
+</div>
+
+<div class="card">
+  <p style="margin-top:0"><strong>How this works:</strong> open each payslip, confirm paid leave, bonus and deductions, then approve it. Only approved payslips are published, and only published payslips are visible to employees.</p>
+  <div class="table-wrap"><table>
+    <thead><tr>
+      <th>ID</th><th>Name</th><th>Status</th><th class="num">Basic</th><th class="num">Leave taken</th><th class="num">Paid</th><th class="num">LOP days</th>
+      <th class="num">Additions</th><th class="num">Deductions</th><th class="num">Net pay</th><th class="num">Cost to co.</th><th></th>
+    </tr></thead>
+    <tbody>
+    {% for s in slips %}
+      <tr>
+        <td>{{ s.employee_code }}</td>
+        <td>{{ s.employee_name }}{% if s.supersedes_id %} <span class="badge">Correction v{{ s.version }}</span>{% endif %}</td>
+        <td><span class="badge {{ s.status }}">{{ s.get_status_display }}</span></td>
+        <td class="num">{{ s.basic|inr:0 }}</td>
+        <td class="num">{{ s.leave_taken|days }}</td>
+        <td class="num">{{ s.paid_leave_applied|days }}</td>
+        <td class="num">{{ s.lop_days|days }}</td>
+        <td class="num">{{ s.additions_total|inr }}</td>
+        <td class="num">{{ s.total_deductions|inr }}</td>
+        <td class="num"><strong>{{ s.net_pay|inr }}</strong></td>
+        <td class="num">{{ s.employer_cost|inr }}</td>
+        <td><a class="btn small {% if s.status != 'draft' and s.status != 'ready' %}secondary{% endif %}" href="{% url 'payslip_edit' s.pk %}">{% if s.status == 'draft' %}Enter inputs{% elif s.status == 'ready' %}Review{% else %}View{% endif %}</a></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="12" class="muted">No payslips. Check that India staff have salary records, then refresh.</td></tr>
+    {% endfor %}
+    {% if slips %}
+      <tr class="total"><td colspan="9">Total ({{ totals.count }})</td><td class="num">₹{{ totals.net|inr }}</td><td class="num">₹{{ totals.cost|inr }}</td><td></td></tr>
+    {% endif %}
+    </tbody>
+  </table></div>
+  <p class="muted" style="font-size:13px;margin-bottom:0">Cost to company = earnings after unpaid leave + employer PF (₹{{ totals.pf_employer|inr }}) + employer ESIC (₹{{ totals.esic_employer|inr }}).</p>
+</div>
+{% endblock %}

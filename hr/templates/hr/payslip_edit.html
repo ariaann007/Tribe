@@ -1,0 +1,88 @@
+{% extends "hr/base.html" %}
+{% load hr_extras %}
+{% block title %}{{ slip.employee_name }} payslip{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ slip.employee_name }} <span class="badge {{ slip.status }}">{{ slip.get_status_display }}</span></h1>
+    <p class="sub"><a href="{% url 'payroll_run' slip.run_id %}">{{ slip.run.label }}</a> · {{ slip.employee_code }} · {{ slip.designation }}{% if slip.version > 1 %} · Correction v{{ slip.version }}{% endif %}</p>
+  </div>
+  <div class="actions">
+    <a class="btn secondary" href="{% url 'payslip_view' slip.pk %}">Preview payslip</a>
+    {% if slip.status == 'ready' %}
+      <form method="post" action="{% url 'payslip_action' slip.pk %}">{% csrf_token %}<button class="btn" name="action" value="approve">Approve</button></form>
+      <form method="post" action="{% url 'payslip_action' slip.pk %}">{% csrf_token %}<button class="btn secondary" name="action" value="reopen" title="Back to draft so leave and salary refresh">Back to draft</button></form>
+    {% elif slip.status == 'approved' %}
+      <form method="post" action="{% url 'payslip_action' slip.pk %}">{% csrf_token %}<button class="btn secondary" name="action" value="unapprove">Unapprove</button></form>
+    {% elif slip.status == 'published' %}
+      <form method="post" action="{% url 'payslip_action' slip.pk %}">{% csrf_token %}<button class="btn secondary" name="action" value="correct" onclick="return confirm('Start a correction? The published payslip stays on record until the corrected one is published.')">Issue correction</button></form>
+    {% endif %}
+  </div>
+</div>
+
+{% if stale %}<div class="alert bad">Records have changed since approval: {{ stale }} Unapprove this payslip to refresh it.</div>{% endif %}
+{% if slip.status == 'published' %}<div class="alert info">Published {{ slip.published_at|date:"d M Y H:i" }}. This payslip is locked.</div>{% endif %}
+{% if slip.status == 'approved' %}<div class="alert info">Approved by {{ slip.approved_by.username }}. It will reach the employee when you publish from the run page.</div>{% endif %}
+
+<div class="grid two">
+  <div class="card">
+    <h2>{% if editable %}1. Confirm this month's inputs{% else %}Inputs{% endif %}</h2>
+    <form method="post" class="stacked">
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="alert bad">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+
+      <p class="muted" style="margin-top:0">
+        Approved leave this period: <strong>{{ slip.leave_taken|days }} days</strong>.
+        Paid leave available: <strong>{{ slip.leave_available|days }} days</strong>
+        ({{ slip.leave_balance_before|days }} carried + {{ slip.leave_accrued|days }} this month).
+      </p>
+
+      <div class="field"><label for="id_paid_leave_applied">How many of the {{ slip.leave_taken|days }} leave days are paid?</label>{{ form.paid_leave_applied }}
+        <span class="helptext">Suggested: as many as the balance allows. The rest is unpaid (LOP) at Basic ÷ 23 per day.</span>{{ form.paid_leave_applied.errors }}</div>
+      <div class="field"><label for="id_days_not_employed">{{ form.days_not_employed.label }}</label>{{ form.days_not_employed }}
+        <span class="helptext">Pre-filled if they joined or left during this period. Otherwise 0.</span>{{ form.days_not_employed.errors }}</div>
+
+      <div class="form-grid">
+        <div class="field"><label for="id_bonus">Bonus (₹)</label>{{ form.bonus }}{{ form.bonus.errors }}</div>
+        <div class="field"><label for="id_incentives">Incentives (₹)</label>{{ form.incentives }}{{ form.incentives.errors }}</div>
+        <div class="field"><label for="id_overtime">Overtime (₹)</label>{{ form.overtime }}{{ form.overtime.errors }}</div>
+        <div class="field"><label for="id_other_additions">Other additions (₹)</label>{{ form.other_additions }}{{ form.other_additions.errors }}</div>
+        <div class="field"><label for="id_advance_recovery">Advance recovery (₹)</label>{{ form.advance_recovery }}
+          <span class="helptext">Outstanding: ₹{{ outstanding|inr }}</span>{{ form.advance_recovery.errors }}</div>
+        <div class="field"><label for="id_other_deductions">Other deductions (₹)</label>{{ form.other_deductions }}{{ form.other_deductions.errors }}</div>
+      </div>
+      <div class="field"><label for="id_other_deductions_note">{{ form.other_deductions_note.label }}</label>{{ form.other_deductions_note }}{{ form.other_deductions_note.errors }}</div>
+      <div class="field"><label for="id_admin_note">{{ form.admin_note.label }}</label>{{ form.admin_note }}{{ form.admin_note.errors }}</div>
+
+      {% if editable %}<button class="btn" type="submit">Calculate and confirm</button>{% endif %}
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>{% if editable %}2. Check the calculation{% else %}Calculation{% endif %}</h2>
+    {% if slip.status == 'draft' %}<div class="alert">Draft figures. Confirm the inputs to recalculate before approving.</div>{% endif %}
+    <table>
+      <tbody>
+        <tr><td>Basic</td><td class="num">{{ slip.basic|inr }}</td></tr>
+        <tr><td>Bonus + incentives + overtime + other</td><td class="num">{{ slip.additions_total|inr }}</td></tr>
+        <tr class="total"><td>Total earnings</td><td class="num">{{ slip.total_earnings|inr }}</td></tr>
+        <tr><td>Unpaid leave: {{ slip.lop_days|days }} day{{ slip.lop_days|pluralize }} × {{ slip.basic|inr }} ÷ 23</td><td class="num">{% if slip.lop_amount %}−{{ slip.lop_amount|inr }}{% else %}0.00{% endif %}</td></tr>
+        <tr><td>PF (employee 12%){% if not slip.pf_applies %} <span class="muted">not enrolled</span>{% endif %}</td><td class="num">{% if slip.pf_employee %}−{{ slip.pf_employee|inr }}{% else %}0.00{% endif %}</td></tr>
+        <tr><td>ESIC (employee 0.75%){% if not slip.esic_applies %} <span class="muted">not applicable</span>{% endif %}</td><td class="num">{% if slip.esic_employee %}−{{ slip.esic_employee|inr }}{% else %}0.00{% endif %}</td></tr>
+        <tr><td>Advance recovery</td><td class="num">{% if slip.advance_recovery %}−{{ slip.advance_recovery|inr }}{% else %}0.00{% endif %}</td></tr>
+        <tr><td>Other deductions{% if slip.other_deductions_note %} ({{ slip.other_deductions_note }}){% endif %}</td><td class="num">{% if slip.other_deductions %}−{{ slip.other_deductions|inr }}{% else %}0.00{% endif %}</td></tr>
+        <tr class="total"><td>Total deductions</td><td class="num">{{ slip.total_deductions|inr }}</td></tr>
+        <tr class="total"><td>Net pay</td><td class="num" style="font-size:18px">₹{{ slip.net_pay|inr }}</td></tr>
+      </tbody>
+    </table>
+    <h2 style="margin-top:20px">Company cost</h2>
+    <table><tbody>
+      <tr><td>Employer PF (12%)</td><td class="num">{{ slip.pf_employer|inr }}</td></tr>
+      <tr><td>Employer ESIC (3.25%)</td><td class="num">{{ slip.esic_employer|inr }}</td></tr>
+      <tr class="total"><td>Cost to company</td><td class="num">₹{{ slip.employer_cost|inr }}</td></tr>
+    </tbody></table>
+    <p class="muted" style="font-size:13px">Paid leave remaining after this payslip: {{ slip.leave_balance_after|days }} days.</p>
+    {% if next_slip and slip.status != 'draft' %}<p><a href="{% url 'payslip_edit' next_slip.pk %}">Next payslip needing input: {{ next_slip.employee_name }} →</a></p>{% endif %}
+  </div>
+</div>
+{% endblock %}

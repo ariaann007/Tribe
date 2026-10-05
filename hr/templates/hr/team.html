@@ -1,0 +1,19 @@
+{% extends "hr/base.html" %}
+{% load hr_extras %}
+{% block title %}My team{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>My team</h1><p class="sub">{{ members|length }} people report to you.</p></div>
+  <div class="actions"><a class="btn" href="{% url 'leave_approvals' %}">Leave approvals</a></div>
+</div>
+<div class="card">
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>Name</th><th>Designation</th><th>Joined</th><th class="num">Paid leave balance</th></tr></thead>
+    <tbody>
+    {% for m, balance in members %}
+      <tr><td>{{ m.employee_code }}</td><td>{{ m.full_name }}</td><td>{{ m.designation }}</td><td>{{ m.date_joined|date:"d M Y" }}</td><td class="num">{% if balance is not None %}{{ balance|days }} days{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="5" class="muted">Nobody is assigned to you yet.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

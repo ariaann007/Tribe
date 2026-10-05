@@ -1,0 +1,48 @@
+{% extends "hr/base.html" %}
+{% load hr_extras %}
+{% block title %}Leave{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Leave</h1><p class="sub">Approved leave feeds straight into the next payslip.</p></div>
+  {% if is_admin %}<div class="actions"><a class="btn secondary" href="{% url 'leave_record' %}">Record leave for someone</a></div>{% endif %}
+</div>
+
+<div class="card">
+  <h2>Waiting for a decision ({{ pending|length }})</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Employee</th><th>Dates</th><th class="num">Days</th><th>Reason</th><th>Requested</th><th></th></tr></thead>
+    <tbody>
+    {% for l in pending %}
+      <tr>
+        <td>{{ l.employee.full_name }}</td>
+        <td>{{ l.start_date|date:"d M Y" }}{% if l.end_date != l.start_date %} – {{ l.end_date|date:"d M Y" }}{% endif %}</td>
+        <td class="num">{{ l.days|days }}</td>
+        <td>{{ l.reason }}</td>
+        <td class="muted">{{ l.created_at|date:"d M" }}</td>
+        <td>
+          {% if l.employee.user_id == user.pk %}<span class="muted">Your own request</span>{% else %}
+          <form method="post" action="{% url 'leave_decide' l.pk %}" class="actions">{% csrf_token %}
+            <button class="btn small" name="decision" value="approve">Approve</button>
+            <button class="btn small secondary" name="decision" value="reject">Reject</button>
+          </form>{% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" class="muted">Nothing waiting.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+<div class="card">
+  <h2>Recent decisions</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Employee</th><th>Dates</th><th class="num">Days</th><th>Status</th><th>By</th></tr></thead>
+    <tbody>
+    {% for l in recent %}
+      <tr><td>{{ l.employee.full_name }}</td><td>{{ l.start_date|date:"d M Y" }}{% if l.end_date != l.start_date %} – {{ l.end_date|date:"d M Y" }}{% endif %}</td><td class="num">{{ l.days|days }}</td><td><span class="badge {{ l.status }}">{{ l.get_status_display }}</span></td><td class="muted">{{ l.decided_by.username|default:"" }}</td></tr>
+    {% empty %}<tr><td colspan="5" class="muted">None yet.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

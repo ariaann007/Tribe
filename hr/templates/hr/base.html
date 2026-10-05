@@ -1,0 +1,46 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Denizns Tribe{% endblock %} · Denizns Tribe</title>
+  <link rel="stylesheet" href="{% static 'hr/style.css' %}">
+</head>
+<body>
+{% if user.is_authenticated %}
+<header class="topbar">
+  <a class="logo" href="{% url 'home' %}">D<span>E</span>NIZNS TRIBE</a>
+  <nav>
+    {% with p=request.path %}
+    {% if nav_is_admin %}
+      <a href="{% url 'dashboard' %}" {% if p == '/dashboard/' %}class="active"{% endif %}>Dashboard</a>
+      <a href="{% url 'employee_list' %}" {% if '/employees/' in p %}class="active"{% endif %}>Staff</a>
+      <a href="{% url 'payroll_runs' %}" {% if '/payroll/' in p or '/payslips/' in p %}class="active"{% endif %}>Payroll</a>
+      <a href="{% url 'leave_approvals' %}" {% if p == '/leave/' %}class="active"{% endif %}>Leave</a>
+      <a href="{% url 'audit_log' %}" {% if p == '/audit/' %}class="active"{% endif %}>Audit log</a>
+    {% elif nav_is_team_lead %}
+      <a href="{% url 'team' %}" {% if p == '/team/' %}class="active"{% endif %}>My team</a>
+      <a href="{% url 'leave_approvals' %}" {% if p == '/leave/' %}class="active"{% endif %}>Leave approvals</a>
+    {% endif %}
+    {% if nav_employee %}
+      <a href="{% url 'me' %}" {% if '/me/' in p %}class="active"{% endif %}>My page</a>
+    {% endif %}
+    {% endwith %}
+  </nav>
+  <div class="user">
+    {{ nav_employee.full_name|default:user.username }}
+    <a href="{% url 'password_change' %}" style="color:#e9dcf3">Password</a>
+    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Log out</button></form>
+  </div>
+</header>
+{% endif %}
+<main>
+  {% if messages %}
+  <ul class="messages">
+    {% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

@@ -1,0 +1,59 @@
+{% extends "hr/base.html" %}
+{% load hr_extras %}
+{% block title %}My page{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Hello, {{ e.full_name }}</h1><p class="sub">{{ e.designation }}{% if e.department %} · {{ e.department.name }}{% endif %}</p></div>
+  {% if e.is_india %}<div class="actions"><a class="btn" href="{% url 'leave_new' %}">Request leave</a></div>{% endif %}
+</div>
+
+{% if e.is_india %}
+<div class="stats">
+  <div class="stat"><div class="label">Paid leave balance</div><div class="value">{{ balance|days }} days</div><div class="note">As of your last payslip. {{ accrual|days }} days are added each month.</div></div>
+  <div class="stat"><div class="label">Joined</div><div class="value" style="font-size:18px">{{ e.date_joined|date:"d M Y" }}</div><div class="note">Anniversary {{ anniversary.0|date:"d M" }}</div></div>
+</div>
+
+<div class="grid two">
+  <div class="card">
+    <h2>My payslips</h2>
+    <table>
+      <tbody>
+      {% for p in payslips %}
+        <tr><td><a href="{% url 'payslip_view' p.pk %}">{{ p.run.label }}</a>{% if p.version > 1 %} <span class="muted">(corrected)</span>{% endif %}</td><td class="num">₹{{ p.net_pay|inr }}</td></tr>
+      {% empty %}<tr><td class="muted">No payslips yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h2>My leave requests</h2>
+    <table>
+      <tbody>
+      {% for l in leave %}
+        <tr>
+          <td>{{ l.start_date|date:"d M" }}{% if l.end_date != l.start_date %} – {{ l.end_date|date:"d M Y" }}{% else %} {{ l.start_date|date:"Y" }}{% endif %}</td>
+          <td class="num">{{ l.days|days }} day{{ l.days|pluralize }}</td>
+          <td><span class="badge {{ l.status }}">{{ l.get_status_display }}</span></td>
+          <td>{% if l.status == 'pending' %}<form method="post" action="{% url 'leave_cancel' l.pk %}">{% csrf_token %}<button class="btn small secondary">Cancel</button></form>{% endif %}</td>
+        </tr>
+      {% empty %}<tr><td class="muted">No leave requests.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>My details</h2>
+  <dl class="details">
+    <dt>Employee ID</dt><dd>{{ e.employee_code }}</dd>
+    <dt>Email</dt><dd>{{ e.email|default:"—" }}</dd>
+    <dt>Team lead</dt><dd>{{ e.team_lead.full_name|default:"—" }}</dd>
+    {% if e.is_india %}
+    <dt>UAN</dt><dd>{{ e.uan|default:"—" }}</dd>
+    <dt>ESIC insurance no.</dt><dd>{{ e.esic_ip_number|default:"—" }}</dd>
+    <dt>PAN</dt><dd>{{ e.pan|default:"—" }}</dd>
+    {% endif %}
+  </dl>
+  <p class="muted" style="font-size:13px;margin-bottom:0">If anything here is wrong, tell HR.</p>
+</div>
+{% endblock %}

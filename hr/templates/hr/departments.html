@@ -1,0 +1,24 @@
+{% extends "hr/base.html" %}
+{% block title %}Departments{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Departments</h1><p class="sub">Used for the cost-by-department view. Add these before adding staff.</p></div></div>
+<div class="grid two">
+  <div class="card">
+    <table>
+      <thead><tr><th>Department</th><th>Office</th><th class="num">Current staff</th></tr></thead>
+      <tbody>
+      {% for d, count in rows %}<tr><td>{{ d.name }}</td><td>{{ d.get_office_display }}</td><td class="num">{{ count }}</td></tr>
+      {% empty %}<tr><td colspan="3" class="muted">None yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h2>Add a department</h2>
+    <form method="post" class="stacked">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button class="btn" type="submit">Add</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

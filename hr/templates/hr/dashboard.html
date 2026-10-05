@@ -1,0 +1,85 @@
+{% extends "hr/base.html" %}
+{% load hr_extras %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Dashboard</h1><p class="sub">Staff cost and headcount across both offices.</p></div>
+  <div class="actions">
+    <a class="btn" href="{% url 'payroll_runs' %}">Run payroll</a>
+    <a class="btn secondary" href="{% url 'employee_new' %}">Add employee</a>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="label">India staff</div><div class="value">{{ headcount_in }}</div></div>
+  <div class="stat"><div class="label">UK staff</div><div class="value">{{ headcount_uk }}</div><div class="note">Directory only</div></div>
+  <div class="stat"><div class="label">India monthly Basic</div><div class="value">₹{{ totals.basic|inr:0 }}</div><div class="note">Current salaries, full month</div></div>
+  <div class="stat"><div class="label">India cost to company</div><div class="value">₹{{ totals.cost|inr:0 }}</div><div class="note">Incl. ₹{{ totals.employer|inr:0 }} employer PF + ESIC</div></div>
+  <div class="stat"><div class="label">Leave awaiting approval</div><div class="value"><a href="{% url 'leave_approvals' %}">{{ pending_leave }}</a></div></div>
+</div>
+
+{% if warnings %}
+<div class="card">
+  <h2>Needs attention ({{ warnings|length }})</h2>
+  {% for w in warnings %}
+    <div class="alert {% if w.level == 'info' %}info{% endif %}"><a href="{% url 'employee_detail' w.employee.pk %}">{{ w.employee.full_name }}</a>: {{ w.message }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="grid two">
+  <div class="card">
+    <h2>India cost by department (INR / month)</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Department</th><th class="num">Staff</th><th class="num">Basic</th><th class="num">Employer PF + ESIC</th><th class="num">Total cost</th></tr></thead>
+      <tbody>
+      {% for row in dept_rows %}
+        <tr><td>{{ row.name }}</td><td class="num">{{ row.headcount }}</td><td class="num">{{ row.basic|inr:0 }}</td><td class="num">{{ row.employer|inr:0 }}</td><td class="num">{{ row.cost|inr:0 }}</td></tr>
+      {% empty %}
+        <tr><td colspan="5" class="muted">No India salary records yet.</td></tr>
+      {% endfor %}
+      {% if dept_rows %}
+        <tr class="total"><td>Total</td><td class="num">{{ totals.headcount }}</td><td class="num">{{ totals.basic|inr:0 }}</td><td class="num">{{ totals.employer|inr:0 }}</td><td class="num">{{ totals.cost|inr:0 }}</td></tr>
+      {% endif %}
+      </tbody>
+    </table></div>
+    <p class="muted" style="font-size:13px;margin-bottom:0">Estimate from current salaries with no unpaid leave. Actual monthly figures are in payroll history.</p>
+  </div>
+
+  <div class="card">
+    <h2>Work anniversaries (next 30 days)</h2>
+    <table>
+      <tbody>
+      {% for when, years, e in anniversaries %}
+        <tr><td>{{ when|date:"D j M" }}</td><td><a href="{% url 'employee_detail' e.pk %}">{{ e.full_name }}</a> <span class="muted">({{ e.get_office_display }})</span></td><td class="num">{{ years }} year{{ years|pluralize }}</td></tr>
+      {% empty %}
+        <tr><td class="muted">None in the next 30 days.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Payroll history (INR)</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Period</th><th class="num">Payslips</th><th class="num">Gross earnings</th><th class="num">Unpaid leave</th><th class="num">Net pay</th><th class="num">Employer PF</th><th class="num">Employer ESIC</th><th class="num">Cost to company</th></tr></thead>
+    <tbody>
+    {% for run, t in history %}
+      <tr>
+        <td><a href="{% url 'payroll_run' run.pk %}">{{ run.label }}</a></td>
+        <td class="num">{{ t.published }}/{{ t.count }} published</td>
+        <td class="num">{{ t.earnings|inr:0 }}</td>
+        <td class="num">−{{ t.lop|inr:0 }}</td>
+        <td class="num">{{ t.net|inr:0 }}</td>
+        <td class="num">{{ t.pf_employer|inr:0 }}</td>
+        <td class="num">{{ t.esic_employer|inr:0 }}</td>
+        <td class="num"><strong>{{ t.cost|inr:0 }}</strong></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="8" class="muted">No payroll runs yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

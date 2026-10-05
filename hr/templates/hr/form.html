@@ -1,0 +1,26 @@
+{% extends "hr/base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>{{ title }}</h1>{% if intro %}<p class="sub">{{ intro }}</p>{% endif %}</div></div>
+<div class="card">
+  <form method="post" class="stacked">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="alert bad">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+    <div class="form-grid">
+    {% for field in form %}
+      <div class="field">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}
+        {{ field.errors }}
+      </div>
+    {% endfor %}
+    </div>
+    <div class="actions">
+      <button class="btn" type="submit">Save</button>
+      {% if back_url %}<a class="btn secondary" href="{% url 'employee_detail' back_url %}">Cancel</a>
+      {% elif back %}<a class="btn secondary" href="{% url back %}">Cancel</a>{% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}
