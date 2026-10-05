@@ -8,7 +8,7 @@
     {% if form.non_field_errors %}<div class="alert bad">{{ form.non_field_errors|join:" " }}</div>{% endif %}
     <div class="form-grid">
     {% for field in form %}
-      <div class="field">
+      <div class="field" data-field="{{ field.name }}">
         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
         {{ field }}
         {% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}
@@ -23,4 +23,43 @@
     </div>
   </form>
 </div>
+{% if office_aware %}
+{{ office_aware|json_script:"office-aware" }}
+<script>
+(function () {
+  const cfg = JSON.parse(document.getElementById("office-aware").textContent);
+  const office = document.getElementById("id_office");
+  const dept = document.getElementById("id_department");
+  const salaryLabel = document.querySelector('[data-field="salary"] label');
+  const salaryInput = document.getElementById("id_salary");
+  const salaryHelp = document.querySelector('[data-field="salary"] .helptext');
+  const deptOptions = dept ? [...dept.options] : [];
+
+  function apply() {
+    const o = office.value;
+    cfg.india_only.forEach(function (name) {
+      const box = document.querySelector('[data-field="' + name + '"]');
+      if (box) box.style.display = o === "UK" ? "none" : "";
+    });
+    if (salaryLabel) {
+      salaryLabel.textContent = cfg.salary_labels[o] || "Salary";
+      salaryInput.placeholder = o === "UK" ? "e.g. 35000" : "e.g. 19500";
+      if (salaryHelp) salaryHelp.textContent = o === "UK"
+        ? "Annual salary in pounds sterling. Optional."
+        : "Monthly Basic in Indian rupees. Used for payroll.";
+    }
+    if (dept) {
+      deptOptions.forEach(function (opt) {
+        const belongs = !opt.value || cfg.departments[opt.value] === o;
+        opt.hidden = !belongs;
+        opt.disabled = !belongs;
+      });
+      if (dept.selectedOptions[0] && dept.selectedOptions[0].disabled) dept.value = "";
+    }
+  }
+  office.addEventListener("change", apply);
+  apply();
+})();
+</script>
+{% endif %}
 {% endblock %}

@@ -5,6 +5,16 @@ from .models import Advance, Department, Employee, EmploymentRecord, LeaveReques
 
 DATE = forms.DateInput(attrs={"type": "date"})
 
+# Fields that only apply to India staff (statutory details and paid-leave balance).
+INDIA_ONLY_FIELDS = [
+    "uan", "pan", "esic_ip_number", "aadhaar_last4", "pf_enrolled", "esic_enrolled", "opening_leave_balance",
+]
+
+SALARY_LABELS = {
+    Office.INDIA: ("Monthly Basic (₹ INR)", "Monthly Basic salary in Indian rupees."),
+    Office.UK: ("Annual salary (£ GBP)", "Annual salary in pounds sterling."),
+}
+
 
 class EmployeeForm(forms.ModelForm):
     class Meta:
@@ -21,6 +31,12 @@ class EmployeeForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["team_lead"].queryset = Employee.objects.filter(role__in=["team_lead", "admin"])
 
+    def limit_to_office(self, office):
+        """Drop fields that don't apply to this office."""
+        if office == Office.UK:
+            for name in INDIA_ONLY_FIELDS:
+                self.fields.pop(name, None)
+
 
 class NewEmployeeForm(EmployeeForm):
     """Employee plus their first employment record."""
@@ -28,28 +44,33 @@ class NewEmployeeForm(EmployeeForm):
     designation = forms.CharField(max_length=100)
     department = forms.ModelChoiceField(Department.objects.all(), required=False)
     weekly_hours = forms.DecimalField(max_digits=4, decimal_places=1, required=False)
-    basic_monthly = forms.DecimalField(
-        label="Monthly Basic (INR)", max_digits=12, decimal_places=2, required=False,
-        help_text="India staff only. Leave blank for UK staff.",
-    )
-    annual_salary_gbp = forms.DecimalField(
-        label="Annual salary (GBP)", max_digits=12, decimal_places=2, required=False,
-        help_text="UK staff only. Leave blank for India staff.",
+    salary = forms.DecimalField(
+        label="Salary", max_digits=12, decimal_places=2, required=False, min_value=0,
+        help_text="India: monthly Basic in ₹ INR. UK: annual salary in £ GBP.",
     )
 
     def clean(self):
         data = super().clean()
         office = data.get("office")
-        if office == Office.INDIA and data.get("basic_monthly") is None:
-            self.add_error("basic_monthly", "Basic salary is required for India staff.")
-        if office == Office.UK and data.get("basic_monthly") is not None:
-            self.add_error("basic_monthly", "UK staff have an annual GBP salary instead.")
-        if office == Office.INDIA and data.get("annual_salary_gbp") is not None:
-            self.add_error("annual_salary_gbp", "India staff are paid a monthly INR Basic instead.")
+        salary = data.get("salary")
+        if office == Office.INDIA and salary is None:
+            self.add_error("salary", "Monthly Basic is required for India staff.")
+        data["basic_monthly"] = salary if office == Office.INDIA else None
+        data["annual_salary_gbp"] = salary if office == Office.UK else None
+        if office == Office.UK:
+            # India-only fields may have been filled before the office was switched; ignore them.
+            for name in INDIA_ONLY_FIELDS:
+                data.pop(name, None)
         dept = data.get("department")
         if dept and office and dept.office != office:
             self.add_error("department", "Department belongs to a different office.")
         return data
+
+    def _post_clean(self):
+        super()._post_clean()
+        if self.cleaned_data.get("office") == Office.UK:
+            for name in INDIA_ONLY_FIELDS:
+                setattr(self.instance, name, Employee._meta.get_field(name).get_default())
 
 
 class DepartmentForm(forms.ModelForm):
@@ -66,6 +87,14 @@ class EmploymentRecordForm(forms.ModelForm):
             "reason",
         ]
         widgets = {"effective_from": DATE}
+        labels = {
+            "basic_monthly": SALARY_LABELS[Office.INDIA][0],
+            "annual_salary_gbp": SALARY_LABELS[Office.UK][0],
+        }
+        help_texts = {
+            "basic_monthly": SALARY_LABELS[Office.INDIA][1],
+            "annual_salary_gbp": SALARY_LABELS[Office.UK][1],
+        }
 
 
 class LeaveRequestForm(forms.ModelForm):

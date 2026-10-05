@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 
 from . import payroll, services
 from .forms import (
+    INDIA_ONLY_FIELDS, SALARY_LABELS,
     AdminLeaveForm, AdvanceForm, CreateLoginForm, DepartmentForm, EmployeeForm, EmploymentRecordForm, LeaveRequestForm,
     NewEmployeeForm, NewRunForm, PayslipInputsForm, ResetPasswordForm,
 )
@@ -115,7 +116,7 @@ def employee_detail(request, pk):
 @admin_required
 @transaction.atomic
 def employee_new(request):
-    form = NewEmployeeForm(request.POST or None)
+    form = NewEmployeeForm(request.POST or None, initial={"office": Office.INDIA})
     form.fields["department"].queryset = Department.objects.all()
     if request.method == "POST" and form.is_valid():
         e = form.save(commit=False)
@@ -131,13 +132,23 @@ def employee_new(request):
         audit(request.user, "employee.created", e)
         messages.success(request, f"{e.full_name} added.")
         return redirect("employee_detail", pk=e.pk)
-    return render(request, "hr/form.html", {"form": form, "title": "Add employee", "back": "employee_list"})
+    return render(request, "hr/form.html", {
+        "form": form, "title": "Add employee", "back": "employee_list",
+        "office_aware": {
+            "india_only": INDIA_ONLY_FIELDS,
+            "salary_labels": {k: v[0] for k, v in SALARY_LABELS.items()},
+            "departments": {str(d.pk): d.office for d in Department.objects.all()},
+        },
+        "intro": "Pick the office first. The salary currency and the fields shown change to match: "
+                 "India staff are paid a monthly Basic in ₹ INR, UK staff an annual salary in £ GBP.",
+    })
 
 
 @admin_required
 def employee_edit(request, pk):
     e = get_object_or_404(Employee, pk=pk)
     form = EmployeeForm(request.POST or None, instance=e)
+    form.limit_to_office(e.office)
     form.fields["office"].disabled = True
     form.fields["team_lead"].queryset = form.fields["team_lead"].queryset.exclude(pk=e.pk)
     demoting_self = (

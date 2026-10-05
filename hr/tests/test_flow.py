@@ -227,7 +227,7 @@ class PagesLoad(TestCase):
         resp = self.client.post(reverse("employee_new"), {
             "employee_code": "3001", "full_name": "New Starter", "office": "IN", "role": "employee",
             "date_joined": "2026-10-01", "designation": "Assistant", "department": dept.pk,
-            "basic_monthly": "16000", "opening_leave_balance": "0",
+            "salary": "16000", "opening_leave_balance": "0",
         })
         self.assertEqual(resp.status_code, 302)
         e = Employee.objects.get(employee_code="3001")
@@ -390,8 +390,8 @@ class UKSalaries(TestCase):
         first.annual_salary_gbp = D("32000")
         first.save()
         form_page = self.client.get(reverse("employment_change_new", args=[uk.pk]))
-        self.assertContains(form_page, "Annual salary (GBP)")
-        self.assertNotContains(form_page, "Monthly Basic (INR)")
+        self.assertContains(form_page, "Annual salary (£ GBP)")
+        self.assertNotContains(form_page, "Monthly Basic")
         resp = self.client.post(reverse("employment_change_new", args=[uk.pk]), {
             "effective_from": "2026-04-01", "designation": "Associate", "department": first.department_id,
             "weekly_hours": "", "annual_salary_gbp": "35000", "reason": "Annual review",
@@ -405,7 +405,9 @@ class UKSalaries(TestCase):
 
     def test_india_record_rejects_gbp_and_form_hides_it(self):
         e = make_employee("I1")
-        self.assertNotContains(self.client.get(reverse("employment_change_new", args=[e.pk])), "Annual salary (GBP)")
+        page = self.client.get(reverse("employment_change_new", args=[e.pk]))
+        self.assertContains(page, "Monthly Basic (₹ INR)")
+        self.assertNotContains(page, "Annual salary")
         record = EmploymentRecord(employee=e, effective_from=date(2026, 1, 1), designation="X",
                                   basic_monthly=D("1"), annual_salary_gbp=D("1"))
         with self.assertRaises(ValidationError):
@@ -422,3 +424,46 @@ class UKSalaries(TestCase):
             for name, args in [("me", []), ("team", []), ("employee_detail", [uk.pk]), ("dashboard", [])]:
                 resp = self.client.get(reverse(name, args=args))
                 self.assertNotContains(resp, "41,234", status_code=resp.status_code)
+
+
+class OfficeDrivesTheFile(TestCase):
+    def setUp(self):
+        self.admin = make_employee("A1", office=Office.UK, role=Role.ADMIN)
+        Department.objects.create(name="Operations", office=Office.UK)
+        self.client.login(username="uA1", password=PASSWORD)
+
+    def post_new(self, office, salary, **extra):
+        data = {
+            "employee_code": f"N-{office}", "full_name": "New Person", "office": office, "role": "employee",
+            "date_joined": "2026-10-01", "designation": "Officer", "salary": salary,
+            "opening_leave_balance": "0", **extra,
+        }
+        return self.client.post(reverse("employee_new"), data)
+
+    def test_uk_salary_saved_as_annual_gbp(self):
+        self.post_new("UK", "35000", uan="999", pf_enrolled="on", opening_leave_balance="5")
+        e = Employee.objects.get(employee_code="N-UK")
+        record = e.employment_records.get()
+        self.assertEqual((record.annual_salary_gbp, record.basic_monthly), (D("35000"), None))
+        # India-only fields submitted by mistake are ignored for UK staff.
+        self.assertEqual((e.uan, e.pf_enrolled, e.opening_leave_balance), ("", False, D("0")))
+
+    def test_india_salary_saved_as_monthly_inr_and_required(self):
+        self.assertContains(self.post_new("IN", ""), "Monthly Basic is required")
+        self.post_new("IN", "19500")
+        record = Employee.objects.get(employee_code="N-IN").employment_records.get()
+        self.assertEqual((record.basic_monthly, record.annual_salary_gbp), (D("19500"), None))
+
+    def test_uk_edit_form_hides_india_fields(self):
+        uk = make_employee("U5", office=Office.UK)
+        page = self.client.get(reverse("employee_edit", args=[uk.pk])).content.decode()
+        for name in ("uan", "pan", "esic_ip_number", "aadhaar_last4", "pf_enrolled", "opening_leave_balance"):
+            self.assertNotIn(f'name="{name}"', page, name)
+        india = make_employee("I5")
+        self.assertIn('name="uan"', self.client.get(reverse("employee_edit", args=[india.pk])).content.decode())
+
+    def test_add_form_has_single_office_aware_salary_field(self):
+        page = self.client.get(reverse("employee_new")).content.decode()
+        self.assertIn('name="salary"', page)
+        self.assertNotIn('name="basic_monthly"', page)
+        self.assertIn("office-aware", page)
