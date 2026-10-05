@@ -97,20 +97,34 @@ These were agreed in discussion and checked against the August 2026 salary sheet
 - UK salaries are not stored at all.
 - Every change to staff records, payroll and leave is written to the audit log.
 
-## Going live
+## Going live on Render
 
-For 20–30 users, a small cloud server is enough, for example Railway, Render, or a UK/EU VPS with PostgreSQL. Before going live:
+The repo includes a Render Blueprint (`render.yaml`). It creates:
 
-1. Set the environment variables:
-   - `DJANGO_DEBUG=0`
-   - `DJANGO_SECRET_KEY` (a long random string)
-   - `DJANGO_ALLOWED_HOSTS` (your domain)
-   - `DJANGO_CSRF_TRUSTED_ORIGINS` (`https://your-domain`)
-   - `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`
-2. Run `pip install psycopg[binary] gunicorn` and serve with `gunicorn config.wsgi`. Use HTTPS only.
-3. Run `python manage.py collectstatic` and `python manage.py migrate`.
-4. Set up **daily database backups**.
-5. **Data crossing borders:** India staff data will be stored outside India, and UK staff data may be stored outside the UK. Under UK GDPR and India's DPDP Act, tell staff where their data is held. If UK data will be processed in India, put an International Data Transfer Agreement (IDTA) in place.
+| Resource | Details | Approx. cost |
+|---|---|---|
+| `denizns-tribe` web service | Starter plan, Frankfurt region | ~$7/month |
+| `tribe-db` PostgreSQL 16 | Basic 256 MB, Frankfurt region, daily backups | ~$6/month |
+
+Frankfurt is in the EU, which the UK treats as adequate for personal data. Free plans aren't used because the free database is deleted after 30 days and the free web service sleeps.
+
+### First deployment
+
+1. In Render, choose **New → Blueprint**, connect GitHub, and pick the **Tribe** repo.
+2. Render asks for two values. Enter them yourself:
+   - `DJANGO_ADMIN_USERNAME`: your login name
+   - `DJANGO_ADMIN_PASSWORD`: a temporary password you'll change on first login
+3. Click **Apply**. The first build takes a few minutes.
+4. Open the `https://denizns-tribe.onrender.com` link and log in. You'll be asked to set a new password.
+5. In Render, go to **denizns-tribe → Environment** and **delete `DJANGO_ADMIN_PASSWORD`**. It's only used once.
+6. Follow "Setting up with real staff" above, starting from step 3.
+
+Every push to `main` on GitHub deploys automatically.
+
+### Still to do
+
+- **Data crossing borders:** India staff data is stored in the EU, not India. Under the DPDP Act and UK GDPR, tell staff where their data is held. If anyone in India will handle UK staff data, put an IDTA in place.
+- **Custom domain (optional):** for example `tribe.denizns.co.uk`. Add it in Render under **Settings → Custom Domains**, then set `DJANGO_ALLOWED_HOSTS` and `DJANGO_CSRF_TRUSTED_ORIGINS` to match.
 
 ## Project layout
 
