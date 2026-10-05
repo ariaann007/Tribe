@@ -57,12 +57,16 @@
 <div class="card">
   <h2>Employment history</h2>
   <div class="table-wrap"><table>
-    <thead><tr><th>From</th><th>Designation</th><th>Department</th><th class="num">Weekly hours</th>{% if e.is_india %}<th class="num">Monthly Basic</th>{% endif %}<th>Reason</th><th>Recorded by</th></tr></thead>
+    <thead><tr><th>From</th><th>Designation</th><th>Department</th><th class="num">Weekly hours</th>{% if e.is_india %}<th class="num">Monthly Basic</th>{% endif %}<th class="hide-narrow">Reason</th><th class="hide-narrow">Recorded by</th><th></th></tr></thead>
     <tbody>
     {% for r in records %}
-      <tr><td>{{ r.effective_from|date:"d M Y" }}</td><td>{{ r.designation }}</td><td>{{ r.department.name|default:"" }}</td><td class="num">{{ r.weekly_hours|default:"" }}</td>{% if e.is_india %}<td class="num">₹{{ r.basic_monthly|inr:0 }}</td>{% endif %}<td>{{ r.reason }}</td><td class="muted">{{ r.created_by.username|default:"" }}</td></tr>
+      <tr><td>{{ r.effective_from|date:"d M Y" }}</td><td>{{ r.designation }}</td><td>{{ r.department.name|default:"" }}</td><td class="num">{{ r.weekly_hours|default:"" }}</td>{% if e.is_india %}<td class="num">₹{{ r.basic_monthly|inr:0 }}</td>{% endif %}<td class="hide-narrow">{{ r.reason }}</td><td class="muted hide-narrow">{{ r.created_by.username|default:"" }}</td>
+        <td><div class="actions" style="flex-wrap:nowrap">
+          <a class="btn small secondary" href="{% url 'employment_record_edit' e.pk r.pk %}">Edit</a>
+          {% if records|length > 1 %}<form method="post" action="{% url 'employment_record_delete' e.pk r.pk %}" onsubmit="return confirm('Delete this history entry? This is recorded in the audit log.')">{% csrf_token %}<button class="btn small danger" type="submit">Delete</button></form>{% endif %}
+        </div></td></tr>
     {% empty %}
-      <tr><td colspan="7" class="muted">No records.</td></tr>
+      <tr><td colspan="8" class="muted">No records.</td></tr>
     {% endfor %}
     </tbody>
   </table></div>

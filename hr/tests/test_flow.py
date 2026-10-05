@@ -8,7 +8,7 @@ from django.urls import reverse
 
 from hr import services
 from hr.models import (
-    Department, Employee, EmploymentRecord, LeaveRequest, Office, Payslip, Role, UserSettings,
+    AuditEvent, Department, Employee, EmploymentRecord, LeaveRequest, Office, Payslip, Role, UserSettings,
 )
 
 PASSWORD = "test-pass-for-unit-tests"
@@ -270,3 +270,61 @@ class DeleteEmployee(TestCase):
         self.client.login(username="uX5", password=PASSWORD)
         self.assertEqual(self.client.post(reverse("employee_delete", args=[e.pk])).status_code, 403)
         self.assertTrue(Employee.objects.filter(pk=e.pk).exists())
+
+
+class EditEmploymentHistory(TestCase):
+    def setUp(self):
+        self.admin = make_employee("A1", office=Office.UK, role=Role.ADMIN)
+        self.client.login(username="uA1", password=PASSWORD)
+
+    def test_edit_india_record_updates_salary_and_current_role(self):
+        e = make_employee("H1", basic="18000")
+        record = e.employment_records.get()
+        resp = self.client.post(reverse("employment_record_edit", args=[e.pk, record.pk]), {
+            "effective_from": "2025-01-01", "designation": "Senior Associate", "department": record.department_id,
+            "weekly_hours": "40", "basic_monthly": "18500", "reason": "Joined",
+        })
+        self.assertRedirects(resp, reverse("employee_detail", args=[e.pk]))
+        e.refresh_from_db()
+        self.assertEqual(e.basic_on(date(2026, 1, 1)), D("18500"))
+        self.assertEqual(e.designation, "Senior Associate")
+        event = AuditEvent.objects.get(action="employee.history_edited")
+        self.assertIn("18000.00 → 18500", event.detail)
+
+    def test_admin_can_edit_own_history(self):
+        record = self.admin.employment_records.get()
+        resp = self.client.post(reverse("employment_record_edit", args=[self.admin.pk, record.pk]), {
+            "effective_from": "2025-01-01", "designation": "HR Director", "department": record.department_id,
+            "weekly_hours": "37.5", "reason": "Joined",
+        })
+        self.assertRedirects(resp, reverse("employee_detail", args=[self.admin.pk]))
+        self.admin.refresh_from_db()
+        self.assertEqual(self.admin.designation, "HR Director")
+        self.assertIsNone(self.admin.employment_records.get().basic_monthly)
+
+    def test_delete_entry_but_not_the_last(self):
+        e = make_employee("H2", basic="18000")
+        first = e.employment_records.get()
+        raise_ = EmploymentRecord.objects.create(
+            employee=e, effective_from=date(2026, 4, 1), designation="Lead", department=first.department,
+            basic_monthly=D("20000"), reason="Promotion",
+        )
+        self.client.post(reverse("employment_record_delete", args=[e.pk, raise_.pk]))
+        self.assertEqual(e.employment_records.count(), 1)
+        self.client.post(reverse("employment_record_delete", args=[e.pk, first.pk]))
+        self.assertEqual(e.employment_records.count(), 1)
+
+    def test_admin_cannot_remove_own_admin_role(self):
+        resp = self.client.post(reverse("employee_edit", args=[self.admin.pk]), {
+            "employee_code": "A1", "full_name": "Person A1", "role": "employee",
+            "date_joined": "2025-01-01", "opening_leave_balance": "0",
+        })
+        self.assertContains(resp, "can&#x27;t remove your own admin role")
+        self.admin.refresh_from_db()
+        self.assertEqual(self.admin.role, Role.ADMIN)
+
+    def test_employee_cannot_edit_history(self):
+        e = make_employee("H3")
+        self.client.login(username="uH3", password=PASSWORD)
+        record = e.employment_records.get()
+        self.assertEqual(self.client.get(reverse("employment_record_edit", args=[e.pk, record.pk])).status_code, 403)

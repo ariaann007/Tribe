@@ -15,7 +15,7 @@ from .forms import (
     NewEmployeeForm, NewRunForm, PayslipInputsForm, ResetPasswordForm,
 )
 from .models import (
-    Advance, AuditEvent, Department, Employee, EmploymentRecord, LeaveRequest, Office, Payslip, PayrollRun,
+    Advance, AuditEvent, Department, Employee, EmploymentRecord, LeaveRequest, Office, Payslip, PayrollRun, Role,
     UserSettings, audit,
 )
 from .permissions import (
@@ -134,6 +134,12 @@ def employee_edit(request, pk):
     form = EmployeeForm(request.POST or None, instance=e)
     form.fields["office"].disabled = True
     form.fields["team_lead"].queryset = form.fields["team_lead"].queryset.exclude(pk=e.pk)
+    demoting_self = (
+        request.method == "POST" and form.is_valid() and employee_of(request.user) == e
+        and not request.user.is_superuser and form.cleaned_data["role"] != Role.ADMIN
+    )
+    if demoting_self:
+        form.add_error("role", "You can't remove your own admin role. Ask another admin to do it.")
     if request.method == "POST" and form.is_valid():
         changed = ", ".join(form.changed_data)
         form.save()
@@ -182,6 +188,23 @@ def employee_delete(request, pk):
     })
 
 
+def _sync_current_role(e):
+    """Copy designation/department from the record in force today onto the employee."""
+    latest = e.record_on(timezone.localdate()) or e.employment_records.order_by("effective_from", "id").first()
+    if latest:
+        e.designation = latest.designation
+        e.department = latest.department
+        e.save(update_fields=["designation", "department"])
+
+
+def _record_form(request, e, instance, initial=None):
+    form = EmploymentRecordForm(request.POST or None, instance=instance, initial=initial or {})
+    form.fields["department"].queryset = Department.objects.filter(office=e.office)
+    if e.office == Office.UK:
+        del form.fields["basic_monthly"]
+    return form
+
+
 @admin_required
 @transaction.atomic
 def employment_change_new(request, pk):
@@ -193,19 +216,12 @@ def employment_change_new(request, pk):
             "designation": current.designation, "department": current.department,
             "weekly_hours": current.weekly_hours, "basic_monthly": current.basic_monthly,
         }
-    form = EmploymentRecordForm(request.POST or None, instance=EmploymentRecord(employee=e), initial=initial)
-    form.fields["department"].queryset = Department.objects.filter(office=e.office)
-    if e.office == Office.UK:
-        del form.fields["basic_monthly"]
+    form = _record_form(request, e, EmploymentRecord(employee=e), initial)
     if request.method == "POST" and form.is_valid():
         record = form.save(commit=False)
         record.created_by = request.user
         record.save()
-        latest = e.record_on(timezone.localdate())
-        if latest:
-            e.designation = latest.designation
-            e.department = latest.department
-            e.save(update_fields=["designation", "department"])
+        _sync_current_role(e)
         audit(request.user, "employee.change_recorded", e, f"from {record.effective_from}: {record.reason}")
         messages.success(request, "Change recorded.")
         return redirect("employee_detail", pk=e.pk)
@@ -214,6 +230,49 @@ def employment_change_new(request, pk):
         "intro": "Use this for a pay rise, new role, department move or change of hours. "
                  "The previous values stay in the history.",
     })
+
+
+@admin_required
+@transaction.atomic
+def employment_record_edit(request, pk, record_pk):
+    e = get_object_or_404(Employee, pk=pk)
+    record = get_object_or_404(EmploymentRecord, pk=record_pk, employee=e)
+    fields = ["effective_from", "designation", "department", "weekly_hours", "basic_monthly", "reason"]
+    before = {f: getattr(record, f) for f in fields}
+    form = _record_form(request, e, record)
+    if request.method == "POST" and form.is_valid():
+        if form.has_changed():
+            record = form.save()
+            _sync_current_role(e)
+            changes = "; ".join(
+                f"{f}: {before[f] or '—'} → {getattr(record, f) or '—'}"
+                for f in form.changed_data
+            )
+            audit(request.user, "employee.history_edited", e, changes)
+            messages.success(request, "Employment history updated.")
+        return redirect("employee_detail", pk=e.pk)
+    return render(request, "hr/form.html", {
+        "form": form, "title": f"Edit history entry for {e.full_name}", "back_url": e.pk,
+        "intro": "Use this to correct a mistake in an existing entry. For a real change, such as a pay rise, "
+                 "record a new change instead so the history is kept. Payslips already published are not affected.",
+    })
+
+
+@admin_required
+@require_POST
+@transaction.atomic
+def employment_record_delete(request, pk, record_pk):
+    e = get_object_or_404(Employee, pk=pk)
+    record = get_object_or_404(EmploymentRecord, pk=record_pk, employee=e)
+    if e.employment_records.count() == 1:
+        messages.error(request, "This is their only history entry. Edit it instead of deleting it.")
+        return redirect("employee_detail", pk=e.pk)
+    detail = f"{record.effective_from}: {record.designation}, basic {record.basic_monthly or '—'}, {record.reason}"
+    record.delete()
+    _sync_current_role(e)
+    audit(request.user, "employee.history_deleted", e, detail)
+    messages.success(request, "History entry deleted.")
+    return redirect("employee_detail", pk=e.pk)
 
 
 @admin_required
