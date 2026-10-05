@@ -1,0 +1,16 @@
+{% extends "hr/base.html" %}
+{% block title %}First-time setup{% endblock %}
+{% block content %}
+<div class="login-wrap" style="margin-top:32px">
+  <div class="card">
+    <h1>Create your admin account</h1>
+    <p class="sub">This page only works once, before anyone else has an account. Choose a password of at least 10 characters.</p>
+    <form method="post" class="stacked">
+      {% csrf_token %}
+      <input type="hidden" name="code" value="{{ code }}">
+      {{ form.as_p }}
+      <button class="btn" type="submit">Create admin account</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

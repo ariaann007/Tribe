@@ -15,6 +15,12 @@ ON_RENDER = os.environ.get("RENDER") == "true"
 ON_VERCEL = os.environ.get("VERCEL") == "1"
 DEBUG = os.environ.get("DJANGO_DEBUG", "0" if (ON_RENDER or ON_VERCEL) else "1") == "1"
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-insecure-key-change-me" if DEBUG else "")
+if not SECRET_KEY and (ON_RENDER or ON_VERCEL) and os.environ.get("DATABASE_URL"):
+    # No key set on the host: derive a stable one from the (secret) database URL,
+    # so deploying doesn't require typing a secret into the dashboard.
+    import hashlib
+
+    SECRET_KEY = hashlib.sha256(("denizns-tribe:" + os.environ["DATABASE_URL"]).encode()).hexdigest()
 if not SECRET_KEY:
     raise RuntimeError("Set DJANGO_SECRET_KEY in production.")
 ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h]

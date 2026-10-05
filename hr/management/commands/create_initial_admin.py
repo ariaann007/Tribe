@@ -25,7 +25,14 @@ class Command(BaseCommand):
         username = os.environ.get("DJANGO_ADMIN_USERNAME")
         password = os.environ.get("DJANGO_ADMIN_PASSWORD")
         if not (username and password):
-            self.stdout.write("DJANGO_ADMIN_USERNAME / DJANGO_ADMIN_PASSWORD not set; skipping initial admin.")
+            from hr.first_run import setup_code
+
+            host = os.environ.get("VERCEL_PROJECT_PRODUCTION_URL") or os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+            link = f"https://{host}/setup/?code={setup_code()}" if host else f"/setup/?code={setup_code()}"
+            self.stdout.write(self.style.WARNING(
+                "No users yet. Create the first admin account by opening this one-time link:\n"
+                f"  FIRST-RUN SETUP: {link}"
+            ))
             return
         user = User.objects.create_superuser(username=username, email="", password=password)
         UserSettings.objects.create(user=user, must_change_password=True)

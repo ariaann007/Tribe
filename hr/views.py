@@ -32,6 +32,30 @@ def _error_text(exc):
     return " ".join(exc.messages)
 
 
+def first_run_setup(request):
+    """Create the first admin account. Only works while the system has no users."""
+    from django.contrib.auth import login
+    from django.contrib.auth.forms import BaseUserCreationForm
+
+    from .first_run import code_is_valid, setup_needed
+
+    code = request.GET.get("code") or request.POST.get("code")
+    if not setup_needed() or not code_is_valid(code):
+        raise Http404
+    form = BaseUserCreationForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            user = form.save(commit=False)
+            user.is_staff = user.is_superuser = True
+            user.save()
+            UserSettings.objects.create(user=user, must_change_password=False)
+            audit(user, "setup.first_admin_created", user.username)
+        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+        messages.success(request, "Your admin account is ready. Next: add departments and staff.")
+        return redirect("dashboard")
+    return render(request, "hr/setup.html", {"form": form, "code": code})
+
+
 @login_required
 def home(request):
     if is_hr_admin(request.user):
