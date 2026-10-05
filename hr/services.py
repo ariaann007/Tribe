@@ -132,7 +132,7 @@ def esic_applies(employee, period_start):
     if not employee.esic_enrolled:
         return False
     cp_start = payroll.esic_contribution_period_start(period_start)
-    basic = employee.basic_on(max(cp_start, employee.date_joined))
+    basic = employee.basic_on(max(cp_start, employee.date_joined or cp_start))
     if basic is None:
         basic = employee.basic_on(period_start)
     return basic is not None and basic <= payroll.ESIC_WAGE_LIMIT
@@ -141,7 +141,9 @@ def esic_applies(employee, period_start):
 # ---- Payroll runs ---------------------------------------------------------
 
 def employees_in_period(period_start, period_end):
-    return Employee.objects.filter(office=Office.INDIA, date_joined__lte=period_end).filter(
+    return Employee.objects.filter(office=Office.INDIA).filter(
+        Q(date_joined__lte=period_end) | Q(date_joined__isnull=True)
+    ).filter(
         Q(date_left__isnull=True) | Q(date_left__gte=period_start)
     )
 
@@ -348,6 +350,11 @@ def compliance_warnings(today=None):
     india = Employee.objects.filter(office=Office.INDIA).filter(
         Q(date_left__isnull=True) | Q(date_left__gte=today)
     )
+    for e in Employee.objects.filter(Q(date_left__isnull=True) | Q(date_left__gte=today)):
+        if e.date_joined is None:
+            warnings.append(Warning(e, "Joining date missing. Add it with Edit details.", "info"))
+        if not e.current_designation:
+            warnings.append(Warning(e, "Job title missing. Add it on their employment history.", "info"))
     for e in india:
         basic = e.basic_on(today)
         if basic is None:
@@ -384,7 +391,7 @@ def upcoming_anniversaries(days=30, today=None):
     upcoming = []
     for e in Employee.objects.filter(Q(date_left__isnull=True) | Q(date_left__gte=today)):
         when, years = e.next_anniversary(today)
-        if years >= 1 and (when - today).days <= days:
+        if years and years >= 1 and (when - today).days <= days:
             upcoming.append((when, years, e))
     upcoming.sort(key=lambda item: item[0])
     return upcoming

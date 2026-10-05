@@ -27,11 +27,12 @@ class Command(BaseCommand):
         except importer.WorkbookError as exc:
             raise CommandError(str(exc))
         self.print_preview(result)
-        if result.errors:
-            self.stdout.write(self.style.ERROR("\nFix these before importing:"))
-            for err in result.errors:
-                self.stdout.write(f"  - {err}")
-            raise CommandError(f"{len(result.errors)} problem(s) found. Nothing was saved.")
+        for number, reason in result.skipped:
+            self.stdout.write(self.style.ERROR(f"  Row {number} skipped: {reason}"))
+        if result.warnings:
+            self.stdout.write(self.style.WARNING("\nImported with gaps (left blank):"))
+            for number, message in result.warnings:
+                self.stdout.write(f"  - {'Row ' + str(number) + ': ' if number else ''}{message}")
         if not commit:
             self.stdout.write(self.style.WARNING(
                 f"\nPreview only: {len(result.to_create)} to add, {len(result.existing)} already in the system "
@@ -53,6 +54,6 @@ class Command(BaseCommand):
             status = "exists, skip" if p["employee_code"] in result.existing else "new"
             self.stdout.write(
                 f"{p['employee_code']:<8}{p['full_name'][:29]:<30}{p['office']:<7}{p['designation'][:33]:<34}"
-                f"{p['date_joined']:%d/%m/%Y}  {salary:>12}  {'Y' if p['pf_enrolled'] else '-':<3} "
+                f"{p['date_joined'].strftime('%d/%m/%Y') if p['date_joined'] else '-':<10}  {salary:>12}  {'Y' if p['pf_enrolled'] else '-':<3} "
                 f"{'Y' if p['esic_enrolled'] else '-':<5} {status}"
             )

@@ -30,11 +30,16 @@ class ImportPage(TestCase):
         self.assertEqual(Employee.objects.count(), 4)
         self.assertEqual(Employee.objects.get(employee_code="2002").team_lead.employee_code, "2001")
 
-    def test_errors_block_confirm(self):
-        bad = ROWS + [{"employee_id": "9", "full_name": "X", "office": "India", "designation": "X", "salary": "1"}]
-        resp = self.client.post(reverse("staff_import"), {"file": upload(workbook(bad))})
-        self.assertContains(resp, "date_joined is required")
-        self.assertNotContains(resp, "Confirm and add")
+    def test_gaps_are_warnings_not_blockers(self):
+        gappy = ROWS + [{"employee_id": "9", "full_name": "X", "office": "India", "designation": "X"}]
+        resp = self.client.post(reverse("staff_import"), {"file": upload(workbook(gappy))})
+        self.assertContains(resp, "no joining date")
+        self.assertContains(resp, "Confirm and add 4 staff")
+        self.client.post(reverse("staff_import"), {"action": "confirm"})
+        self.assertTrue(Employee.objects.filter(employee_code="9").exists())
+        # The staff page and dashboard still work with the missing date.
+        self.assertEqual(self.client.get(reverse("employee_detail", args=[Employee.objects.get(employee_code="9").pk])).status_code, 200)
+        self.assertContains(self.client.get(reverse("dashboard")), "Joining date missing")
 
     def test_rejects_non_xlsx(self):
         resp = self.client.post(reverse("staff_import"), {"file": SimpleUploadedFile("x.csv", b"a,b")})

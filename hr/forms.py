@@ -44,6 +44,11 @@ class NewEmployeeForm(EmployeeForm):
     designation = forms.CharField(max_length=100)
     department = forms.ModelChoiceField(Department.objects.all(), required=False)
     weekly_hours = forms.DecimalField(max_digits=4, decimal_places=1, required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["date_joined"].required = True
+
     salary = forms.DecimalField(
         label="Salary", max_digits=12, decimal_places=2, required=False, min_value=0,
         help_text="India: monthly Basic in ₹ INR. UK: annual salary in £ GBP.",

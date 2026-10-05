@@ -56,9 +56,28 @@ class ImportStaff(TestCase):
         call_command("import_staff", workbook(ROWS), "--commit", stdout=open(tempfile.mktemp(), "w"))
         self.assertEqual(Employee.objects.count(), 3)
 
-    def test_any_bad_row_blocks_the_whole_import(self):
-        bad = ROWS + [{"employee_id": "2003", "full_name": "No Date", "office": "India", "designation": "X",
-                       "salary": "1000"}]
-        with self.assertRaises(CommandError):
-            call_command("import_staff", workbook(bad), "--commit", stdout=open(tempfile.mktemp(), "w"))
-        self.assertEqual(Employee.objects.count(), 0)
+    def test_rows_with_gaps_are_still_imported(self):
+        gappy = ROWS + [
+            {"employee_id": "2003", "full_name": "No Date Or Salary", "office": "India", "pf_enrolled": "maybe",
+             "date_joined": "sometime"},
+            {"employee_id": "", "full_name": "No ID"},
+            {"employee_id": "2004", "full_name": "No Office", "team_lead_id": "9999"},
+        ]
+        call_command("import_staff", workbook(gappy), "--commit", stdout=open(tempfile.mktemp(), "w"))
+        self.assertEqual(Employee.objects.count(), 5)  # 3 good + 2 with gaps; the row without an ID is skipped
+        gap = Employee.objects.get(employee_code="2003")
+        self.assertIsNone(gap.date_joined)
+        self.assertFalse(gap.pf_enrolled)
+        self.assertFalse(gap.employment_records.exists())  # no salary yet
+        self.assertEqual(gap.next_anniversary(), (None, None))
+        no_office = Employee.objects.get(employee_code="2004")
+        self.assertEqual((no_office.office, no_office.team_lead), (Office.INDIA, None))
+
+        from hr import services
+        messages = [w.message for w in services.compliance_warnings() if w.employee == gap]
+        self.assertIn("Joining date missing. Add it with Edit details.", messages)
+        self.assertTrue(any("No salary record" in m for m in messages))
+        # Payroll still includes them (and skips them only for lack of salary).
+        admin_user = None
+        run, skipped = services.create_run(2026, 9, admin_user)
+        self.assertIn(gap, skipped)

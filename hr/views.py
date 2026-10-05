@@ -138,18 +138,19 @@ def staff_import(request):
         except importer.WorkbookError as exc:
             error = str(exc)
         else:
-            if result.ok:
-                try:
-                    created = importer.create(result.to_create, actor=request.user)
-                except ValidationError as exc:
-                    error = f"Nothing was saved: {_error_text(exc)}"
-                else:
-                    request.session.pop(session_key, None)
-                    messages.success(
-                        request, f"Added {len(created)} staff."
-                        + (f" Skipped {len(result.existing)} already in the system." if result.existing else "")
-                    )
-                    return redirect("employee_list")
+            try:
+                created = importer.create(result.to_create, actor=request.user)
+            except ValidationError as exc:
+                error = f"Nothing was saved: {_error_text(exc)}"
+            else:
+                request.session.pop(session_key, None)
+                note = f"Added {len(created)} staff."
+                if result.existing:
+                    note += f" Skipped {len(result.existing)} already in the system."
+                if result.warnings:
+                    note += " Some details were missing; see Needs attention on the dashboard."
+                messages.success(request, note)
+                return redirect("employee_list")
     elif request.method == "POST":
         upload = request.FILES.get("file")
         if not upload:

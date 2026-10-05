@@ -51,7 +51,7 @@ class Employee(models.Model):
         "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="team_members",
         help_text="Approves this person's leave.",
     )
-    date_joined = models.DateField()
+    date_joined = models.DateField(null=True, blank=True)
     probation_end_date = models.DateField(null=True, blank=True)
     date_left = models.DateField(null=True, blank=True)
 
@@ -83,7 +83,7 @@ class Employee(models.Model):
     def clean(self):
         if self.aadhaar_last4 and not (self.aadhaar_last4.isdigit() and len(self.aadhaar_last4) == 4):
             raise ValidationError({"aadhaar_last4": "Enter exactly the last 4 digits."})
-        if self.date_left and self.date_left < self.date_joined:
+        if self.date_left and self.date_joined and self.date_left < self.date_joined:
             raise ValidationError({"date_left": "Leaving date is before joining date."})
         if self.department and self.department.office != self.office:
             raise ValidationError({"department": "Department belongs to a different office."})
@@ -126,6 +126,9 @@ class Employee(models.Model):
         return self.basic_on(timezone.localdate())
 
     def next_anniversary(self, today=None):
+        """(date, years) of the next work anniversary, or (None, None) if the joining date is unknown."""
+        if self.date_joined is None:
+            return None, None
         today = today or timezone.localdate()
         try:
             anniversary = self.date_joined.replace(year=today.year)

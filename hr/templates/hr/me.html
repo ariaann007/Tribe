@@ -10,7 +10,7 @@
 {% if e.is_india %}
 <div class="stats">
   <div class="stat"><div class="label">Paid leave balance</div><div class="value">{{ balance|days }} days</div><div class="note">As of your last payslip. {{ accrual|days }} days are added each month.</div></div>
-  <div class="stat"><div class="label">Joined</div><div class="value" style="font-size:18px">{{ e.date_joined|date:"d M Y" }}</div><div class="note">Anniversary {{ anniversary.0|date:"d M" }}</div></div>
+  <div class="stat"><div class="label">Joined</div><div class="value" style="font-size:18px">{{ e.date_joined|date:"d M Y"|default:"—" }}</div><div class="note">{% if anniversary.0 %}Anniversary {{ anniversary.0|date:"d M" }}{% else %}Ask HR to add your joining date{% endif %}</div></div>
 </div>
 
 <div class="grid two">

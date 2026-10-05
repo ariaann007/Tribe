@@ -170,7 +170,7 @@ def round_to_half(value):
 def suggested_days_not_employed(period_start, period_end, date_joined, date_left):
     """Working days outside employment, scaled from calendar days to 23."""
     total = (period_end - period_start).days + 1
-    first = max(period_start, date_joined)
+    first = max(period_start, date_joined or period_start)
     last = min(period_end, date_left) if date_left else period_end
     employed = max((last - first).days + 1, 0)
     outside = total - employed

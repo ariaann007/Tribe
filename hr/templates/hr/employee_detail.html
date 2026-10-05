@@ -18,7 +18,7 @@
 {% if not e.is_india %}
 <div class="stats">
   <div class="stat"><div class="label">Annual salary</div><div class="value">{% if current_salary_gbp is not None %}£{{ current_salary_gbp|gbp }}{% else %}—{% endif %}</div><div class="note">{% if current_salary_gbp is not None %}Admins only{% else %}Add it with Record pay / role change{% endif %}</div></div>
-  <div class="stat"><div class="label">Next work anniversary</div><div class="value" style="font-size:18px">{{ anniversary.0|date:"d M Y" }}</div><div class="note">{{ anniversary.1 }} year{{ anniversary.1|pluralize }}</div></div>
+  <div class="stat"><div class="label">Next work anniversary</div><div class="value" style="font-size:18px">{{ anniversary.0|date:"d M Y"|default:"—" }}</div><div class="note">{% if anniversary.1 %}{{ anniversary.1 }} year{{ anniversary.1|pluralize }}{% else %}Joining date not recorded{% endif %}</div></div>
 </div>
 {% endif %}
 {% if e.is_india %}
@@ -26,7 +26,7 @@
   <div class="stat"><div class="label">Monthly Basic</div><div class="value">₹{{ current_basic|inr:0 }}</div></div>
   <div class="stat"><div class="label">Paid leave balance</div><div class="value">{{ balance|days }} days</div><div class="note">After last payslip</div></div>
   <div class="stat"><div class="label">Advance outstanding</div><div class="value">₹{{ advance_outstanding|inr:0 }}</div></div>
-  <div class="stat"><div class="label">Next work anniversary</div><div class="value" style="font-size:18px">{{ anniversary.0|date:"d M Y" }}</div><div class="note">{{ anniversary.1 }} year{{ anniversary.1|pluralize }}</div></div>
+  <div class="stat"><div class="label">Next work anniversary</div><div class="value" style="font-size:18px">{{ anniversary.0|date:"d M Y"|default:"—" }}</div><div class="note">{% if anniversary.1 %}{{ anniversary.1 }} year{{ anniversary.1|pluralize }}{% else %}Joining date not recorded{% endif %}</div></div>
 </div>
 {% endif %}
 
@@ -40,7 +40,7 @@
       <dt>Business unit</dt><dd>{{ e.business_unit|default:"—" }}</dd>
       <dt>Team lead</dt><dd>{{ e.team_lead.full_name|default:"—" }}</dd>
       <dt>System role</dt><dd>{{ e.get_role_display }}</dd>
-      <dt>Joined</dt><dd>{{ e.date_joined|date:"d M Y" }}</dd>
+      <dt>Joined</dt><dd>{{ e.date_joined|date:"d M Y"|default:"Not recorded" }}</dd>
       {% if e.date_left %}<dt>Left</dt><dd>{{ e.date_left|date:"d M Y" }}</dd>{% endif %}
       <dt>Login</dt><dd>{% if e.user_id %}{{ e.user.username }}{% else %}None{% endif %}</dd>
     </dl>
