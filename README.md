@@ -97,6 +97,20 @@ These were agreed in discussion and checked against the August 2026 salary sheet
 - UK salaries (annual, GBP) are visible to admins only. Team leads and employees never see them.
 - Every change to staff records, payroll and leave is written to the audit log.
 
+## Going live on Vercel
+
+The repo is ready for Vercel's built-in Django support (`vercel.json`). Each deploy creates or upgrades the database tables and, the first time, creates your admin login. The app runs in Frankfurt (`fra1`).
+
+1. In the Vercel project, go to **Storage** and connect a **Neon** Postgres database (free plan, region **Frankfurt / eu-central-1**). This sets `DATABASE_URL` automatically.
+2. In **Settings → Environment Variables**, add:
+   - `DJANGO_SECRET_KEY`: a long random string
+   - `DJANGO_ADMIN_USERNAME` and `DJANGO_ADMIN_PASSWORD`: your first login (you'll change the password when you first sign in)
+3. Go to **Deployments** and click **Redeploy** on the latest deployment.
+4. Open the `.vercel.app` link, log in and change your password. Then delete `DJANGO_ADMIN_PASSWORD` from Vercel.
+5. To load staff, run `python manage.py import_staff <file.xlsx> --commit` on your computer with `DATABASE_URL` set to the Neon connection string.
+
+Vercel's **Hobby** plan is for personal, non-commercial use only. A company HR system needs the **Pro** plan to stay within Vercel's terms.
+
 ## Going live on Render
 
 The repo includes a Render Blueprint (`render.yaml`). It creates:

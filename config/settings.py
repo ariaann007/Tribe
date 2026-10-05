@@ -10,9 +10,10 @@ import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Render sets RENDER=true. Never default to debug mode there.
+# Render sets RENDER=true and Vercel sets VERCEL=1. Never default to debug mode there.
 ON_RENDER = os.environ.get("RENDER") == "true"
-DEBUG = os.environ.get("DJANGO_DEBUG", "0" if ON_RENDER else "1") == "1"
+ON_VERCEL = os.environ.get("VERCEL") == "1"
+DEBUG = os.environ.get("DJANGO_DEBUG", "0" if (ON_RENDER or ON_VERCEL) else "1") == "1"
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-insecure-key-change-me" if DEBUG else "")
 if not SECRET_KEY:
     raise RuntimeError("Set DJANGO_SECRET_KEY in production.")
@@ -24,6 +25,11 @@ RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
     CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
+
+# Vercel serves the app on *.vercel.app (production and preview URLs).
+if ON_VERCEL:
+    ALLOWED_HOSTS.append(".vercel.app")
+    CSRF_TRUSTED_ORIGINS.append("https://*.vercel.app")
 
 INSTALLED_APPS = [
     "hr",  # first, so its registration/ templates win over the admin's
@@ -71,10 +77,12 @@ WSGI_APPLICATION = "config.wsgi.application"
 # automatically when the database is linked). Refuse to run in production
 # without it: SQLite on Render is wiped on every deploy.
 if not DEBUG and not os.environ.get("DATABASE_URL"):
-    raise RuntimeError("Set DATABASE_URL to the PostgreSQL database's Internal Database URL.")
+    raise RuntimeError("Set DATABASE_URL to your PostgreSQL connection string (e.g. from Neon).")
 DATABASES = {
     "default": dj_database_url.config(
-        default=f"sqlite:///{(BASE_DIR / 'db.sqlite3').as_posix()}", conn_max_age=600, conn_health_checks=True,
+        default=f"sqlite:///{(BASE_DIR / 'db.sqlite3').as_posix()}",
+        # Serverless functions on Vercel shouldn't hold connections open between requests.
+        conn_max_age=0 if ON_VERCEL else 600, conn_health_checks=True,
     )
 }
 

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "python manage.py migrate --no-input && python manage.py create_initial_admin",
+  "regions": [
+    "fra1"
+  ],
+  "functions": {
+    "config/wsgi.py": {
+      "maxDuration": 30
+    }
+  }
+}
