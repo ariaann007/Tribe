@@ -10,7 +10,9 @@ import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
+# Render sets RENDER=true. Never default to debug mode there.
+ON_RENDER = os.environ.get("RENDER") == "true"
+DEBUG = os.environ.get("DJANGO_DEBUG", "0" if ON_RENDER else "1") == "1"
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-insecure-key-change-me" if DEBUG else "")
 if not SECRET_KEY:
     raise RuntimeError("Set DJANGO_SECRET_KEY in production.")
@@ -66,7 +68,10 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 # SQLite for local use. In production set DATABASE_URL (Render does this
-# automatically when the database is linked).
+# automatically when the database is linked). Refuse to run in production
+# without it: SQLite on Render is wiped on every deploy.
+if not DEBUG and not os.environ.get("DATABASE_URL"):
+    raise RuntimeError("Set DATABASE_URL to the PostgreSQL database's Internal Database URL.")
 DATABASES = {
     "default": dj_database_url.config(
         default=f"sqlite:///{(BASE_DIR / 'db.sqlite3').as_posix()}", conn_max_age=600, conn_health_checks=True,
