@@ -3,7 +3,7 @@
 {% block title %}My page{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>Hello, {{ e.full_name }}</h1><p class="sub">{{ e.designation }}{% if e.department %} · {{ e.department.name }}{% endif %}</p></div>
+  <div><h1>Hello, {{ e.full_name }}</h1><p class="sub">{{ e.current_designation }}{% if e.current_department %} · {{ e.current_department.name }}{% endif %}</p></div>
   {% if e.is_india %}<div class="actions"><a class="btn" href="{% url 'leave_new' %}">Request leave</a></div>{% endif %}
 </div>
 

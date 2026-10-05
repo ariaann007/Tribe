@@ -11,7 +11,7 @@
     <thead><tr><th>ID</th><th>Name</th><th>Designation</th><th>Joined</th><th class="num">Paid leave balance</th></tr></thead>
     <tbody>
     {% for m, balance in members %}
-      <tr><td>{{ m.employee_code }}</td><td>{{ m.full_name }}</td><td>{{ m.designation }}</td><td>{{ m.date_joined|date:"d M Y" }}</td><td class="num">{% if balance is not None %}{{ balance|days }} days{% endif %}</td></tr>
+      <tr><td>{{ m.employee_code }}</td><td>{{ m.full_name }}</td><td>{{ m.current_designation }}</td><td>{{ m.date_joined|date:"d M Y" }}</td><td class="num">{% if balance is not None %}{{ balance|days }} days{% endif %}</td></tr>
     {% empty %}<tr><td colspan="5" class="muted">Nobody is assigned to you yet.</td></tr>{% endfor %}
     </tbody>
   </table></div>

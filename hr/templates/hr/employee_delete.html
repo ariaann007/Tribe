@@ -3,7 +3,7 @@
 {% block content %}
 <div class="card" style="max-width:620px">
   <h1>Delete {{ e.full_name }}?</h1>
-  <p class="sub">{{ e.employee_code }} · {{ e.designation }} · {{ e.get_office_display }}</p>
+  <p class="sub">{{ e.employee_code }} · {{ e.current_designation }} · {{ e.get_office_display }}</p>
   {% if blockers %}
     {% for b in blockers %}<div class="alert bad">{{ b }}</div>{% endfor %}
     <div class="actions">

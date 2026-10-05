@@ -107,6 +107,17 @@ class Employee(models.Model):
         record = self.record_on(on)
         return record.basic_monthly if record else None
 
+    @property
+    def current_designation(self):
+        """Designation from the history entry in force today (handles future-dated changes)."""
+        record = self.record_on(timezone.localdate())
+        return record.designation if record else self.designation
+
+    @property
+    def current_department(self):
+        record = self.record_on(timezone.localdate())
+        return record.department if record else self.department
+
     def current_basic(self):
         return self.basic_on(timezone.localdate())
 

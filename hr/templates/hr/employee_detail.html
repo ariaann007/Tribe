@@ -5,7 +5,7 @@
 <div class="page-head">
   <div>
     <h1>{{ e.full_name }}</h1>
-    <p class="sub">{{ e.employee_code }} · {{ e.designation }} · {{ e.get_office_display }}{% if e.on_probation %} · <span class="badge pending">Probation until {{ e.probation_end_date|date:"d M Y" }}</span>{% endif %}</p>
+    <p class="sub">{{ e.employee_code }} · {{ e.current_designation }} · {{ e.get_office_display }}{% if e.on_probation %} · <span class="badge pending">Probation until {{ e.probation_end_date|date:"d M Y" }}</span>{% endif %}</p>
   </div>
   <div class="actions">
     <a class="btn" href="{% url 'employment_change_new' e.pk %}">Record pay / role change</a>
@@ -30,7 +30,7 @@
     <dl class="details">
       <dt>Email</dt><dd>{{ e.email|default:"—" }}</dd>
       <dt>Phone</dt><dd>{{ e.phone|default:"—" }}</dd>
-      <dt>Department</dt><dd>{{ e.department.name|default:"—" }}</dd>
+      <dt>Department</dt><dd>{{ e.current_department.name|default:"—" }}</dd>
       <dt>Business unit</dt><dd>{{ e.business_unit|default:"—" }}</dd>
       <dt>Team lead</dt><dd>{{ e.team_lead.full_name|default:"—" }}</dd>
       <dt>System role</dt><dd>{{ e.get_role_display }}</dd>
@@ -56,17 +56,51 @@
 
 <div class="card">
   <h2>Employment history</h2>
-  <div class="table-wrap"><table>
-    <thead><tr><th>From</th><th>Designation</th><th>Department</th><th class="num">Weekly hours</th>{% if e.is_india %}<th class="num">Monthly Basic</th>{% endif %}<th class="hide-narrow">Reason</th><th class="hide-narrow">Recorded by</th><th></th></tr></thead>
+  <p class="muted" style="margin-top:-6px">Changes in role, salary, department and hours, and the date each took effect. Newest first.</p>
+  <div class="table-wrap"><table class="history">
+    <thead><tr><th>From</th><th>What changed</th><th class="hide-narrow">Reason</th><th></th></tr></thead>
     <tbody>
-    {% for r in records %}
-      <tr><td>{{ r.effective_from|date:"d M Y" }}</td><td>{{ r.designation }}</td><td>{{ r.department.name|default:"" }}</td><td class="num">{{ r.weekly_hours|default:"" }}</td>{% if e.is_india %}<td class="num">₹{{ r.basic_monthly|inr:0 }}</td>{% endif %}<td class="hide-narrow">{{ r.reason }}</td><td class="muted hide-narrow">{{ r.created_by.username|default:"" }}</td>
+    {% for h in history %}{% with r=h.record %}
+      <tr>
+        <td style="white-space:nowrap">
+          <strong>{{ r.effective_from|date:"d M Y" }}</strong>
+          {% if h.status == "current" %}<br><span class="badge published">Current</span>{% elif h.status == "upcoming" %}<br><span class="badge pending">Upcoming</span>{% endif %}
+        </td>
+        <td>
+          {% if h.is_first %}
+            <div><strong>Joined as {{ r.designation }}</strong></div>
+            <div class="muted">
+              {% if r.department %}{{ r.department.name }}{% endif %}
+              {% if e.is_india and r.basic_monthly is not None %} · ₹{{ r.basic_monthly|inr:0 }}/month{% endif %}
+              {% if r.weekly_hours %} · {{ r.weekly_hours|days }} hrs/week{% endif %}
+            </div>
+          {% else %}
+            {% for c in h.changes %}
+              <div class="change">
+                <span class="change-label">{{ c.label }}</span>
+                {% if c.is_money %}
+                  <span class="old">₹{{ c.old|inr:0 }}</span> → <strong>₹{{ c.new|inr:0 }}</strong>
+                  {% if c.percent is not None %}<span class="pct {% if c.percent < 0 %}down{% endif %}">{% if c.percent > 0 %}+{% endif %}{{ c.percent }}%</span>{% endif %}
+                {% elif c.label == "Weekly hours" %}
+                  <span class="old">{{ c.old|days }}</span> → <strong>{{ c.new|days }}</strong>
+                {% else %}
+                  <span class="old">{{ c.old|default:"—" }}</span> → <strong>{{ c.new|default:"—" }}</strong>
+                {% endif %}
+              </div>
+            {% empty %}
+              <span class="muted">No change to role, salary, department or hours</span>
+            {% endfor %}
+          {% endif %}
+          <div class="muted" style="font-size:12px;margin-top:4px">Recorded by {{ r.created_by.username|default:"—" }} on {{ r.created_at|date:"d M Y" }}</div>
+        </td>
+        <td class="hide-narrow">{{ r.reason }}</td>
         <td><div class="actions" style="flex-wrap:nowrap">
           <a class="btn small secondary" href="{% url 'employment_record_edit' e.pk r.pk %}">Edit</a>
-          {% if records|length > 1 %}<form method="post" action="{% url 'employment_record_delete' e.pk r.pk %}" onsubmit="return confirm('Delete this history entry? This is recorded in the audit log.')">{% csrf_token %}<button class="btn small danger" type="submit">Delete</button></form>{% endif %}
-        </div></td></tr>
-    {% empty %}
-      <tr><td colspan="8" class="muted">No records.</td></tr>
+          {% if history|length > 1 %}<form method="post" action="{% url 'employment_record_delete' e.pk r.pk %}" onsubmit="return confirm('Delete this history entry? This is recorded in the audit log.')">{% csrf_token %}<button class="btn small danger" type="submit">Delete</button></form>{% endif %}
+        </div></td>
+      </tr>
+    {% endwith %}{% empty %}
+      <tr><td colspan="4" class="muted">No history yet.</td></tr>
     {% endfor %}
     </tbody>
   </table></div>

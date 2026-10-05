@@ -51,6 +51,62 @@ def period_is_closed_for(employee, day):
     ).exists()
 
 
+# ---- Employment history ---------------------------------------------------
+
+@dataclass
+class HistoryChange:
+    label: str
+    old: object
+    new: object
+    is_money: bool = False
+    percent: Decimal | None = None
+
+
+@dataclass
+class HistoryEntry:
+    record: object
+    changes: list
+    is_first: bool
+    status: str  # "current", "upcoming" or "past"
+
+
+def employment_timeline(employee, today=None):
+    """Each history entry with what changed compared with the entry before it, newest first."""
+    today = today or timezone.localdate()
+    records = list(employee.employment_records.select_related("department", "created_by")
+                   .order_by("effective_from", "id"))
+    current = employee.record_on(today)
+    entries, previous = [], None
+    for record in records:
+        changes = []
+        if previous is not None:
+            if record.designation != previous.designation:
+                changes.append(HistoryChange("Role", previous.designation, record.designation))
+            old_dept = previous.department.name if previous.department else "—"
+            new_dept = record.department.name if record.department else "—"
+            if old_dept != new_dept:
+                changes.append(HistoryChange("Department", old_dept, new_dept))
+            if record.basic_monthly != previous.basic_monthly:
+                percent = None
+                if previous.basic_monthly and record.basic_monthly is not None:
+                    percent = ((record.basic_monthly - previous.basic_monthly) * 100 / previous.basic_monthly
+                               ).quantize(Decimal("0.1"))
+                changes.append(HistoryChange("Salary", previous.basic_monthly, record.basic_monthly,
+                                             is_money=True, percent=percent))
+            if record.weekly_hours != previous.weekly_hours:
+                changes.append(HistoryChange("Weekly hours", previous.weekly_hours, record.weekly_hours))
+        if record.effective_from > today:
+            status = "upcoming"
+        elif current and record.pk == current.pk:
+            status = "current"
+        else:
+            status = "past"
+        entries.append(HistoryEntry(record, changes, previous is None, status))
+        previous = record
+    entries.reverse()
+    return entries
+
+
 # ---- Advances -------------------------------------------------------------
 
 def advance_outstanding(employee):
@@ -92,8 +148,10 @@ def employees_in_period(period_start, period_end):
 def _fill_snapshot(slip, employee, run):
     slip.employee_code = employee.employee_code
     slip.employee_name = employee.full_name
-    slip.designation = employee.designation
-    slip.department = employee.department.name if employee.department else ""
+    record = employee.record_on(run.period_end)
+    slip.designation = record.designation if record else employee.designation
+    department = record.department if record else employee.department
+    slip.department = department.name if department else ""
     slip.business_unit = employee.business_unit
     slip.uan = employee.uan
     slip.pan = employee.pan
@@ -341,7 +399,8 @@ def current_cost_summary(today=None):
         basic = e.basic_on(today)
         if basic is None:
             continue
-        name = e.department.name if e.department else "No department"
+        department = e.current_department
+        name = department.name if department else "No department"
         employer = payroll.estimated_employer_contributions(
             basic, e.pf_enrolled, esic_applies(e, payroll.period_containing(today)[0])
         )

@@ -137,3 +137,10 @@ dl.details dd { margin: 0; }
   .topbar nav { order: 3; flex-basis: 100%; }
   .hide-narrow { display: none; }
 }
+
+/* Employment history changes */
+table.history .change { margin: 2px 0; }
+table.history .change-label { display: inline-block; min-width: 108px; color: var(--muted); font-size: 13px; }
+table.history .old { color: var(--muted); text-decoration: line-through; }
+table.history .pct { margin-left: 6px; font-size: 12px; font-weight: 600; color: var(--ok); background: var(--ok-bg); padding: 1px 6px; border-radius: 999px; }
+table.history .pct.down { color: var(--bad); background: var(--bad-bg); }

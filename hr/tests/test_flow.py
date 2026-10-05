@@ -328,3 +328,52 @@ class EditEmploymentHistory(TestCase):
         self.client.login(username="uH3", password=PASSWORD)
         record = e.employment_records.get()
         self.assertEqual(self.client.get(reverse("employment_record_edit", args=[e.pk, record.pk])).status_code, 403)
+
+
+class EmploymentTimeline(TestCase):
+    def test_shows_role_and_salary_changes_with_dates(self):
+        admin = make_employee("A1", office=Office.UK, role=Role.ADMIN)
+        e = make_employee("T1", basic="18000")
+        first = e.employment_records.get()
+        EmploymentRecord.objects.create(
+            employee=e, effective_from=date(2026, 4, 1), designation="Senior Associate",
+            department=first.department, basic_monthly=D("19500"), reason="Promotion",
+        )
+        EmploymentRecord.objects.create(
+            employee=e, effective_from=date(2099, 1, 1), designation="Senior Associate",
+            department=first.department, basic_monthly=D("19500"), weekly_hours=D("40"), reason="Hours change",
+        )
+        timeline = services.employment_timeline(e, today=date(2026, 10, 5))
+        self.assertEqual([h.status for h in timeline], ["upcoming", "current", "past"])
+        promo = timeline[1]
+        self.assertEqual({c.label for c in promo.changes}, {"Role", "Salary"})
+        salary = next(c for c in promo.changes if c.label == "Salary")
+        self.assertEqual((salary.old, salary.new, salary.percent), (D("18000"), D("19500"), D("8.3")))
+        self.assertTrue(timeline[2].is_first)
+
+        self.client.login(username="uA1", password=PASSWORD)
+        resp = self.client.get(reverse("employee_detail", args=[e.pk]))
+        self.assertContains(resp, "Joined as Associate")
+        self.assertContains(resp, "₹18,000")
+        self.assertContains(resp, "₹19,500")
+        self.assertContains(resp, "+8.3%")
+        self.assertContains(resp, "01 Apr 2026")
+
+
+class FutureDatedChanges(TestCase):
+    def test_title_and_payslip_follow_history_by_date(self):
+        admin = make_employee("A1", office=Office.UK, role=Role.ADMIN)
+        e = make_employee("F1", basic="18000")
+        first = e.employment_records.get()
+        EmploymentRecord.objects.create(
+            employee=e, effective_from=date(2026, 9, 1), designation="Team Lead",
+            department=first.department, basic_monthly=D("20000"), reason="Promotion",
+        )
+        # Stored field is stale on purpose (as if the change was made outside the app).
+        self.assertEqual(e.designation, "Associate")
+        run, _ = services.create_run(2026, 9, admin.user)
+        slip = run.current_payslips().get(employee=e)
+        self.assertEqual((slip.designation, slip.basic), ("Team Lead", D("20000")))
+        run_aug, _ = services.create_run(2026, 8, admin.user)
+        old = run_aug.current_payslips().get(employee=e)
+        self.assertEqual((old.designation, old.basic), ("Associate", D("18000")))

@@ -94,7 +94,7 @@ def employee_detail(request, pk):
     e = get_object_or_404(Employee, pk=pk)
     ctx = {
         "e": e,
-        "records": e.employment_records.select_related("department", "created_by"),
+        "history": services.employment_timeline(e),
         "leave": e.leave_requests.all()[:20],
         "payslips": e.payslips.select_related("run").exclude(status=Status.SUPERSEDED),
         "advances": e.advances.all(),

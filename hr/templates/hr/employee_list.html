@@ -21,8 +21,8 @@
         <td>{{ e.employee_code }}</td>
         <td><a href="{% url 'employee_detail' e.pk %}">{{ e.full_name }}</a>{% if e.date_left %} <span class="badge cancelled">Left {{ e.date_left|date:"M Y" }}</span>{% endif %}{% if e.on_probation %} <span class="badge pending">Probation</span>{% endif %}</td>
         <td>{{ e.get_office_display }}</td>
-        <td>{{ e.designation }}</td>
-        <td class="hide-narrow">{{ e.department.name|default:"" }}</td>
+        <td>{{ e.current_designation }}</td>
+        <td class="hide-narrow">{{ e.current_department.name|default:"" }}</td>
         <td class="hide-narrow">{{ e.team_lead.full_name|default:"" }}</td>
         <td class="hide-narrow">{{ e.date_joined|date:"d M Y" }}</td>
         <td class="hide-narrow">{% if e.user_id %}Yes{% else %}<span class="muted">No</span>{% endif %}</td>
