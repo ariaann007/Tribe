@@ -101,12 +101,20 @@ These were agreed in discussion and checked against the August 2026 salary sheet
 
 The repo includes a Render Blueprint (`render.yaml`). It creates:
 
-| Resource | Details | Approx. cost |
+| Resource | Details | Cost |
 |---|---|---|
-| `denizns-tribe` web service | Starter plan, Frankfurt region | ~$7/month |
-| `tribe-db` PostgreSQL 16 | Basic 256 MB, Frankfurt region, daily backups | ~$6/month |
+| `denizns-tribe` web service | Free plan, Frankfurt region | Free |
+| `tribe-db` PostgreSQL 16 | Free plan, Frankfurt region | Free |
 
-Frankfurt is in the EU, which the UK treats as adequate for personal data. Free plans aren't used because the free database is deleted after 30 days and the free web service sleeps.
+Frankfurt is in the EU, which the UK treats as adequate for personal data.
+
+**Free plan limits. Read these before adding real staff:**
+
+- **The free database is deleted 30 days after it's created**, together with all its data, unless you upgrade it. Render emails you before this happens. Upgrade before then: in Render, open **tribe-db → Settings**, choose Basic 256 MB (about $6/month), and the data is kept.
+- **The free database has no backups.**
+- **The free web service sleeps after 15 minutes without visitors.** The next visit takes about a minute to load.
+
+Use the free plan to try the system out. Upgrade the database before you run real payroll on it.
 
 ### First deployment
 
