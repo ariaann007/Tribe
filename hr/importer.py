@@ -8,6 +8,7 @@ without an employee ID or name are skipped. Gaps then show up under
 "Needs attention" on the dashboard.
 """
 
+import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -131,8 +132,43 @@ def blank_template():
     return buffer.getvalue()
 
 
-def read_workbook(source):
-    """source: a path or a file-like object."""
+def _normal(header):
+    """'Start date (DD/MM/YYYY)' -> 'start date'."""
+    h = re.sub(r"\(.*?\)", "", text(header).lower())
+    h = re.sub(r"[^a-z0-9 ]+", " ", h)
+    return re.sub(r"\s+", " ", h).strip()
+
+
+# Common column names people use in their own staff lists -> our columns.
+ALIASES = {
+    "employee id": "employee_id", "emp id": "employee_id", "id": "employee_id", "employee code": "employee_id",
+    "staff id": "employee_id",
+    "name": "full_name", "full name": "full_name", "employee name": "full_name", "staff name": "full_name",
+    "role": "designation", "designation": "designation", "job title": "designation", "title": "designation",
+    "position": "designation",
+    "start date": "date_joined", "date joined": "date_joined", "joining date": "date_joined", "doj": "date_joined",
+    "date of joining": "date_joined", "joined": "date_joined",
+    "salary": "salary", "salary per month": "salary", "monthly salary": "salary", "basic": "salary",
+    "basic pay": "salary", "annual salary": "salary",
+    "office": "office", "location": "office", "country": "office",
+    "department": "department", "dept": "department", "team": "department",
+    "reporting under": "reporting_under", "reports to": "reporting_under", "manager": "reporting_under",
+    "line manager": "reporting_under",
+    "pf": "pf_enrolled", "pf enrolled": "pf_enrolled", "esic": "esic_enrolled", "esic enrolled": "esic_enrolled",
+    "email": "email", "email address": "email", "phone": "phone", "mobile": "phone",
+}
+ALIASES.update({_normal(c): c for c in COLUMNS})
+ALIASES.update({_normal(h): c for c, h in HEADINGS.items()})
+MONTHLY_SALARY_HEADERS = {"salary per month", "monthly salary"}
+
+
+def _load_rows(source, filename):
+    if (filename or str(source)).lower().endswith(".csv"):
+        import csv
+        import io
+
+        raw = source.read() if hasattr(source, "read") else open(source, "rb").read()
+        return [tuple(r) for r in csv.reader(io.StringIO(raw.decode("utf-8-sig", errors="replace")))]
     from openpyxl import load_workbook
 
     try:
@@ -140,49 +176,134 @@ def read_workbook(source):
     except FileNotFoundError:
         raise WorkbookError("File not found.")
     except Exception:
-        raise WorkbookError("That isn't a readable .xlsx spreadsheet.")
-    rows = list(sheet.iter_rows(values_only=True))
+        raise WorkbookError("That isn't a readable spreadsheet. Upload an Excel (.xlsx) or CSV file.")
+    return list(sheet.iter_rows(values_only=True))
+
+
+def _find_header(rows):
+    """The first row (within the top 10) that names a person column and at least one other known column."""
+    for index, row in enumerate(rows[:10]):
+        mapped = [ALIASES.get(_normal(h)) for h in row]
+        if "designation" not in mapped:
+            # In most staff lists "Role" is the job title, not the system role.
+            mapped = ["designation" if m == "role" and _normal(h) == "role" else m for m, h in zip(mapped, row)]
+        if "full_name" in mapped and len([m for m in mapped if m]) >= 2:
+            return index, mapped, [_normal(h) for h in row]
+    raise WorkbookError("Couldn't find a heading row with a Name column. Use the template, or add a 'Name' heading.")
+
+
+def read_workbook(source, filename=None):
+    """source: a path or a file-like object. Accepts our template or a typical staff list."""
+    rows = _load_rows(source, filename)
     if not rows:
         raise WorkbookError("The spreadsheet is empty.")
-    header = [text(h).lower() for h in rows[0]]
-    missing_essential = [c for c in ESSENTIAL_COLUMNS if c not in header]
-    if missing_essential:
-        raise WorkbookError(
-            f"The first row needs the column names {', '.join(missing_essential)}. Use the template."
-        )
+    header_index, mapped, raw_headers = _find_header(rows)
 
     result = ImportResult()
-    missing = [c for c in COLUMNS if c not in header]
+    missing = [c for c in COLUMNS if c not in mapped and not (c == "team_lead_id" and "reporting_under" in mapped)]
     if missing:
-        result.warnings.append((None, f"Columns not in the file, left blank: {', '.join(missing)}."))
+        result.warnings.append((None, "Not in the file, left blank: " + ", ".join(HEADINGS[c] for c in missing) + "."))
 
     seen = set()
-    for number, values in enumerate(rows[1:], start=2):
-        row = dict(zip(header, values))
+    for number, values in enumerate(rows[header_index + 1:], start=header_index + 2):
+        row, monthly = {}, False
+        for column, raw_header, value in zip(mapped, raw_headers, values):
+            if column and text(value) and not text(row.get(column)):  # first non-empty wins (duplicate headers)
+                row[column] = value
+                if column == "salary" and raw_header in MONTHLY_SALARY_HEADERS:
+                    monthly = True
         if not any(text(v) for v in row.values()):
             continue
-        if text(row.get("employee_id")).lower() == "employee id":  # friendly heading row
+        if text(row.get("employee_id")).lower() == "employee id":  # friendly heading row in our template
             continue
-        code, name = text(row.get("employee_id")), text(row.get("full_name"))
-        if not code or not name:
-            result.skipped.append((number, "no employee ID" if not code else "no name"))
+        name = text(row.get("full_name"))
+        if not name:
+            result.skipped.append((number, "no name"))
             continue
-        if code in seen:
+        details = ("office", "date_joined", "salary", "employee_id", "designation", "department")
+        if not any(text(row.get(k)) for k in details) or text(row.get("designation")).replace(".", "").isdigit():
+            result.skipped.append((number, f"'{name}' doesn't look like a staff row"))
+            continue
+        code = text(row.get("employee_id"))
+        if code and code in seen:
             result.skipped.append((number, f"employee ID {code} appears earlier in the file"))
             continue
-        seen.add(code)
+        if code:
+            seen.add(code)
         parsed, warnings = parse_row(row)
+        if monthly and parsed["office"] == Office.UK and parsed["salary"] is not None:
+            parsed["salary"] = parsed["salary"] * 12
+            warnings.append(f"UK salary given per month; recorded as £{parsed['salary']:,.2f} a year")
+        parsed["reporting_under"] = text(row.get("reporting_under"))
         result.rows.append((number, parsed))
         result.warnings.extend((number, w) for w in warnings)
 
+    _assign_codes(result)
+    _resolve_team_leads(result)
+    return result
+
+
+def _assign_codes(result):
+    """Match people without an ID to existing staff by name, or give them a new ID."""
+    taken = set(Employee.objects.values_list("employee_code", flat=True)) | {
+        p["employee_code"] for _, p in result.rows if p["employee_code"]
+    }
+    by_name = {e.full_name.strip().lower(): e.employee_code for e in Employee.objects.all()}
+    counters = {}
+    for number, p in result.rows:
+        if p["employee_code"]:
+            continue
+        existing = by_name.get(p["full_name"].lower())
+        if existing:
+            p["employee_code"] = existing
+            continue
+        prefix = "IN" if p["office"] == Office.INDIA else "UK"
+        n = counters.get(prefix, 0)
+        while True:
+            n += 1
+            code = f"{prefix}-{n:03d}"
+            if code not in taken:
+                break
+        counters[prefix] = n
+        taken.add(code)
+        p["employee_code"] = code
+        result.warnings.append((number, f"no Employee ID; given {code} (change it with Edit details)"))
     codes = [p["employee_code"] for _, p in result.rows]
     result.existing = set(Employee.objects.filter(employee_code__in=codes).values_list("employee_code", flat=True))
-    known_leads = set(codes) | set(Employee.objects.values_list("employee_code", flat=True))
+
+
+def _resolve_team_leads(result):
+    """team_lead_id, or 'Reporting under' as an ID, a name or a job title from the file or the system."""
+    in_file = {p["employee_code"]: p for _, p in result.rows}
+    by_title, by_name = {}, {}
+    for _, p in result.rows:
+        if p["designation"]:
+            by_title.setdefault(p["designation"].lower(), p["employee_code"])
+        by_name.setdefault(p["full_name"].lower(), p["employee_code"])
+    for e in Employee.objects.all():
+        if e.current_designation:
+            by_title.setdefault(e.current_designation.lower(), e.employee_code)
+        by_name.setdefault(e.full_name.lower(), e.employee_code)
+    known = set(in_file) | set(Employee.objects.values_list("employee_code", flat=True))
+
+    leads = set()
     for number, p in result.rows:
-        if p["team_lead_code"] and p["team_lead_code"] not in known_leads:
-            result.warnings.append((number, f"team lead {p['team_lead_code']} isn't a known employee ID; left blank"))
+        ref = p["team_lead_code"] or p.pop("reporting_under", "")
+        p.pop("reporting_under", None)
+        if not ref:
+            continue
+        key = ref.lower()
+        code = ref if ref in known else by_name.get(key) or by_title.get(key)
+        if code and code != p["employee_code"]:
+            p["team_lead_code"] = code
+            leads.add(code)
+        else:
             p["team_lead_code"] = ""
-    return result
+            result.warnings.append((number, f"reports to '{ref}', who isn't in the file or the system; left blank"))
+    for code in leads:  # people others report to can approve their leave
+        lead = in_file.get(code)
+        if lead and lead["role"] == Role.EMPLOYEE and not lead.get("role_given"):
+            lead["role"] = Role.TEAM_LEAD
 
 
 def parse_row(row):
@@ -203,6 +324,7 @@ def parse_row(row):
         office = Office.INDIA
     india = office == Office.INDIA
 
+    role_given = bool(text(row.get("role")))
     role = ROLES.get(text(row.get("role")).lower())
     if role is None:
         warnings.append(f"role '{text(row.get('role'))}' not recognised; set to Employee")
@@ -228,6 +350,7 @@ def parse_row(row):
         "full_name": text(row.get("full_name")),
         "office": office,
         "role": role,
+        "role_given": role_given,
         "designation": designation,
         "department": text(row.get("department")),
         "date_joined": date_joined,

@@ -14,10 +14,10 @@
 <div class="card">
   <form method="post" enctype="multipart/form-data" class="stacked">
     {% csrf_token %}
-    <div class="field"><label for="id_file">Spreadsheet (.xlsx)</label><input id="id_file" type="file" name="file" accept=".xlsx" required></div>
+    <div class="field"><label for="id_file">Spreadsheet (Excel .xlsx or CSV)</label><input id="id_file" type="file" name="file" accept=".xlsx,.csv" required></div>
     <button class="btn" type="submit">Upload and preview</button>
   </form>
-  <p class="muted" style="font-size:13px;margin-bottom:0">Salary is the monthly Basic in ₹ for India staff and the annual salary in £ for UK staff. People whose Employee ID is already in the system are skipped.</p>
+  <p class="muted" style="font-size:13px;margin-bottom:0">Use the template, or your own staff list downloaded from Google Sheets or Excel. Columns like Name, Role, Office, Start date, Salary per month, Reporting under and PF are recognised. Staff without an Employee ID get one automatically. People already in the system are skipped.</p>
 </div>
 {% else %}
 <div class="card">

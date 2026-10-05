@@ -134,7 +134,9 @@ def staff_import(request):
             messages.error(request, "The upload has expired. Please upload the file again.")
             return redirect("staff_import")
         try:
-            result = importer.read_workbook(BytesIO(base64.b64decode(data)))
+            result = importer.read_workbook(
+                BytesIO(base64.b64decode(data)), filename=request.session.get(session_key + "_name"),
+            )
         except importer.WorkbookError as exc:
             error = str(exc)
         else:
@@ -155,18 +157,22 @@ def staff_import(request):
         upload = request.FILES.get("file")
         if not upload:
             error = "Choose a spreadsheet to upload."
-        elif not upload.name.lower().endswith(".xlsx"):
-            error = "Upload an Excel .xlsx file."
+        elif upload.name.lower().endswith(".pdf"):
+            error = ("PDFs can't be read. In Google Sheets or Excel, download the sheet as Excel (.xlsx) "
+                     "or CSV and upload that instead.")
+        elif not upload.name.lower().endswith((".xlsx", ".csv")):
+            error = "Upload an Excel (.xlsx) or CSV file."
         elif upload.size > MAX_IMPORT_BYTES:
             error = "That file is too large (2 MB maximum)."
         else:
             data = upload.read()
             try:
-                result = importer.read_workbook(BytesIO(data))
+                result = importer.read_workbook(BytesIO(data), filename=upload.name)
             except importer.WorkbookError as exc:
                 error = str(exc)
             else:
                 request.session[session_key] = base64.b64encode(data).decode()
+                request.session[session_key + "_name"] = upload.name
     return render(request, "hr/staff_import.html", {"result": result, "error": error})
 
 

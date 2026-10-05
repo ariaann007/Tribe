@@ -41,9 +41,16 @@ class ImportPage(TestCase):
         self.assertEqual(self.client.get(reverse("employee_detail", args=[Employee.objects.get(employee_code="9").pk])).status_code, 200)
         self.assertContains(self.client.get(reverse("dashboard")), "Joining date missing")
 
-    def test_rejects_non_xlsx(self):
-        resp = self.client.post(reverse("staff_import"), {"file": SimpleUploadedFile("x.csv", b"a,b")})
-        self.assertContains(resp, "Upload an Excel .xlsx file")
+    def test_rejects_pdf_and_other_files(self):
+        resp = self.client.post(reverse("staff_import"), {"file": SimpleUploadedFile("list.pdf", b"%PDF")})
+        self.assertContains(resp, "PDFs can&#x27;t be read")
+        resp = self.client.post(reverse("staff_import"), {"file": SimpleUploadedFile("x.txt", b"a")})
+        self.assertContains(resp, "Upload an Excel (.xlsx) or CSV file")
+
+    def test_csv_upload(self):
+        csv = "Name,Role,Office,Start date,Salary per month\r\nCSV Person,Associate,India,01/02/2025,20000\r\n"
+        resp = self.client.post(reverse("staff_import"), {"file": SimpleUploadedFile("staff.csv", csv.encode())})
+        self.assertContains(resp, "Confirm and add 1 staff")
 
     def test_template_download(self):
         resp = self.client.get(reverse("staff_import") + "?template=1")

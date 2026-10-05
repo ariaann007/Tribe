@@ -81,3 +81,50 @@ class ImportStaff(TestCase):
         admin_user = None
         run, skipped = services.create_run(2026, 9, admin_user)
         self.assertIn(gap, skipped)
+
+
+class OwnStaffListLayout(TestCase):
+    """A sheet laid out like the company's Google Sheets staff list."""
+
+    def make(self):
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["", "Source: August 2026 payroll sheet"])
+        ws.append(["Name", "Role", "Salary per month", "Salary per month", "Office", "Start date",
+                   "Reporting under", "Years of service", "PF"])
+        ws.append(["Lead Person", "Team Lead India", 42000, None, "India", "16/12/2024", "Direction of Operations",
+                   "1 yrs", "Yes"])
+        ws.append(["Head Person", "Head of Support", 28500, None, "India", "19/12/2022", "Team Lead India", "", "Yes"])
+        ws.append(["Staff Person", "Associate", 19500, None, "India", "17/02/2025", "Head of Support", "", "No"])
+        ws.append(["UK Person", "Operations Executive", None, 2083.30, "UK", "04/02/2022", "", "", "No"])
+        ws.append([])
+        ws.append(["Data Analysis", ""])
+        ws.append(["Total count", 13])
+        ws.append(["India Staff Budget"])
+        path = Path(tempfile.mkdtemp()) / "Staff List.xlsx"
+        wb.save(path)
+        return str(path)
+
+    def test_reads_own_layout(self):
+        from hr import importer
+
+        result = importer.read_workbook(self.make())
+        names = [p["full_name"] for _, p in result.rows]
+        self.assertEqual(names, ["Lead Person", "Head Person", "Staff Person", "UK Person"])
+        self.assertEqual(len(result.skipped), 3)  # Data Analysis, Total count, India Staff Budget
+        p = {r["full_name"]: r for _, r in result.rows}
+        self.assertEqual(p["Lead Person"]["employee_code"], "IN-001")
+        self.assertEqual(p["Staff Person"]["team_lead_code"], p["Head Person"]["employee_code"])
+        self.assertEqual(p["Head Person"]["team_lead_code"], p["Lead Person"]["employee_code"])
+        self.assertEqual(p["Lead Person"]["team_lead_code"], "")  # Director isn't in the file
+        self.assertEqual(p["Head Person"]["role"], "team_lead")
+        self.assertEqual(p["UK Person"]["salary"], D("2083.30") * 12)
+        self.assertTrue(p["Lead Person"]["pf_enrolled"])
+
+        call_command("import_staff", self.make(), "--commit", stdout=open(tempfile.mktemp(), "w"))
+        self.assertEqual(Employee.objects.count(), 4)
+        uk = Employee.objects.get(full_name="UK Person")
+        self.assertEqual(uk.employment_records.get().annual_salary_gbp, D("24999.60"))
+        # Uploading the same list again matches people by name and adds nobody.
+        again = importer.read_workbook(self.make())
+        self.assertEqual(again.to_create, [])
