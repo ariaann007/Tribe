@@ -60,6 +60,7 @@ class HistoryChange:
     new: object
     is_money: bool = False
     percent: Decimal | None = None
+    currency: str = "INR"
 
 
 @dataclass
@@ -86,13 +87,13 @@ def employment_timeline(employee, today=None):
             new_dept = record.department.name if record.department else "—"
             if old_dept != new_dept:
                 changes.append(HistoryChange("Department", old_dept, new_dept))
-            if record.basic_monthly != previous.basic_monthly:
+            (old_amount, old_cur), (new_amount, new_cur) = previous.salary, record.salary
+            if old_amount != new_amount:
                 percent = None
-                if previous.basic_monthly and record.basic_monthly is not None:
-                    percent = ((record.basic_monthly - previous.basic_monthly) * 100 / previous.basic_monthly
-                               ).quantize(Decimal("0.1"))
-                changes.append(HistoryChange("Salary", previous.basic_monthly, record.basic_monthly,
-                                             is_money=True, percent=percent))
+                if old_amount and new_amount is not None and old_cur == new_cur:
+                    percent = ((new_amount - old_amount) * 100 / old_amount).quantize(Decimal("0.1"))
+                changes.append(HistoryChange("Salary", old_amount, new_amount, is_money=True, percent=percent,
+                                             currency=new_cur or old_cur or "INR"))
             if record.weekly_hours != previous.weekly_hours:
                 changes.append(HistoryChange("Weekly hours", previous.weekly_hours, record.weekly_hours))
         if record.effective_from > today:
@@ -419,6 +420,34 @@ def current_cost_summary(today=None):
         "employer": sum((r["employer"] for r in rows), ZERO),
     }
     totals["cost"] = totals["basic"] + totals["employer"]
+    return rows, totals
+
+
+def uk_salary_summary(today=None):
+    """UK annual salaries (GBP) by department. Admin-only figures; no UK payroll here."""
+    today = today or timezone.localdate()
+    by_dept = defaultdict(lambda: {"headcount": 0, "with_salary": 0, "annual": ZERO})
+    for e in Employee.objects.filter(office=Office.UK).filter(
+        Q(date_left__isnull=True) | Q(date_left__gte=today)
+    ):
+        department = e.current_department
+        row = by_dept[department.name if department else "No department"]
+        row["headcount"] += 1
+        salary = e.current_annual_salary_gbp()
+        if salary is not None:
+            row["with_salary"] += 1
+            row["annual"] += salary
+    rows = []
+    for name, row in sorted(by_dept.items()):
+        row["name"] = name
+        row["monthly"] = row["annual"] / 12
+        rows.append(row)
+    totals = {
+        "headcount": sum(r["headcount"] for r in rows),
+        "with_salary": sum(r["with_salary"] for r in rows),
+        "annual": sum((r["annual"] for r in rows), ZERO),
+    }
+    totals["monthly"] = totals["annual"] / 12
     return rows, totals
 
 

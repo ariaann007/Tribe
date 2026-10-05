@@ -377,3 +377,48 @@ class FutureDatedChanges(TestCase):
         run_aug, _ = services.create_run(2026, 8, admin.user)
         old = run_aug.current_payslips().get(employee=e)
         self.assertEqual((old.designation, old.basic), ("Associate", D("18000")))
+
+
+class UKSalaries(TestCase):
+    def setUp(self):
+        self.admin = make_employee("A1", office=Office.UK, role=Role.ADMIN)
+        self.client.login(username="uA1", password=PASSWORD)
+
+    def test_record_uk_salary_change_shows_in_history_and_dashboard(self):
+        uk = make_employee("U1", office=Office.UK)
+        first = uk.employment_records.get()
+        first.annual_salary_gbp = D("32000")
+        first.save()
+        form_page = self.client.get(reverse("employment_change_new", args=[uk.pk]))
+        self.assertContains(form_page, "Annual salary (GBP)")
+        self.assertNotContains(form_page, "Monthly Basic (INR)")
+        resp = self.client.post(reverse("employment_change_new", args=[uk.pk]), {
+            "effective_from": "2026-04-01", "designation": "Associate", "department": first.department_id,
+            "weekly_hours": "", "annual_salary_gbp": "35000", "reason": "Annual review",
+        })
+        self.assertRedirects(resp, reverse("employee_detail", args=[uk.pk]))
+        page = self.client.get(reverse("employee_detail", args=[uk.pk]))
+        self.assertContains(page, "£32,000")
+        self.assertContains(page, "£35,000")
+        self.assertContains(page, "+9.4%")
+        self.assertContains(self.client.get(reverse("dashboard")), "£35,000")
+
+    def test_india_record_rejects_gbp_and_form_hides_it(self):
+        e = make_employee("I1")
+        self.assertNotContains(self.client.get(reverse("employment_change_new", args=[e.pk])), "Annual salary (GBP)")
+        record = EmploymentRecord(employee=e, effective_from=date(2026, 1, 1), designation="X",
+                                  basic_monthly=D("1"), annual_salary_gbp=D("1"))
+        with self.assertRaises(ValidationError):
+            record.full_clean()
+
+    def test_uk_salary_hidden_from_non_admins(self):
+        uk = make_employee("U2", office=Office.UK)
+        record = uk.employment_records.get()
+        record.annual_salary_gbp = D("41234")
+        record.save()
+        lead = make_employee("L9", role=Role.TEAM_LEAD)
+        for person in (uk, lead):
+            self.client.login(username=person.user.username, password=PASSWORD)
+            for name, args in [("me", []), ("team", []), ("employee_detail", [uk.pk]), ("dashboard", [])]:
+                resp = self.client.get(reverse(name, args=args))
+                self.assertNotContains(resp, "41,234", status_code=resp.status_code)

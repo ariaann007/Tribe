@@ -32,6 +32,10 @@ class NewEmployeeForm(EmployeeForm):
         label="Monthly Basic (INR)", max_digits=12, decimal_places=2, required=False,
         help_text="India staff only. Leave blank for UK staff.",
     )
+    annual_salary_gbp = forms.DecimalField(
+        label="Annual salary (GBP)", max_digits=12, decimal_places=2, required=False,
+        help_text="UK staff only. Leave blank for India staff.",
+    )
 
     def clean(self):
         data = super().clean()
@@ -39,7 +43,9 @@ class NewEmployeeForm(EmployeeForm):
         if office == Office.INDIA and data.get("basic_monthly") is None:
             self.add_error("basic_monthly", "Basic salary is required for India staff.")
         if office == Office.UK and data.get("basic_monthly") is not None:
-            self.add_error("basic_monthly", "UK salaries are not stored in this system.")
+            self.add_error("basic_monthly", "UK staff have an annual GBP salary instead.")
+        if office == Office.INDIA and data.get("annual_salary_gbp") is not None:
+            self.add_error("annual_salary_gbp", "India staff are paid a monthly INR Basic instead.")
         dept = data.get("department")
         if dept and office and dept.office != office:
             self.add_error("department", "Department belongs to a different office.")
@@ -55,7 +61,10 @@ class DepartmentForm(forms.ModelForm):
 class EmploymentRecordForm(forms.ModelForm):
     class Meta:
         model = EmploymentRecord
-        fields = ["effective_from", "designation", "department", "weekly_hours", "basic_monthly", "reason"]
+        fields = [
+            "effective_from", "designation", "department", "weekly_hours", "basic_monthly", "annual_salary_gbp",
+            "reason",
+        ]
         widgets = {"effective_from": DATE}
 
 

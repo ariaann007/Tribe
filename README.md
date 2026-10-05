@@ -1,6 +1,6 @@
 # Denizns Tribe: internal HR system
 
-Phase 1 of the Denizns internal HR system. It covers UK and India staff. India staff get full HR and payroll; UK staff are a directory only.
+Phase 1 of the Denizns internal HR system. It covers UK and India staff. India staff get full HR and payroll. UK staff get records, an annual salary in GBP with dated history, and a cost view; UK payroll stays with the accountant.
 
 | Who | What they can do |
 |---|---|
@@ -94,7 +94,7 @@ These were agreed in discussion and checked against the August 2026 salary sheet
 - Passwords are hashed. Sessions end after 8 hours or when the browser closes.
 - Each person sees only their own data. Team leads see no pay figures.
 - Only the last 4 digits of Aadhaar are stored.
-- UK salaries are not stored at all.
+- UK salaries (annual, GBP) are visible to admins only. Team leads and employees never see them.
 - Every change to staff records, payroll and leave is written to the audit log.
 
 ## Going live on Render

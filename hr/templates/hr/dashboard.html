@@ -12,7 +12,7 @@
 
 <div class="stats">
   <div class="stat"><div class="label">India staff</div><div class="value">{{ headcount_in }}</div></div>
-  <div class="stat"><div class="label">UK staff</div><div class="value">{{ headcount_uk }}</div><div class="note">Directory only</div></div>
+  <div class="stat"><div class="label">UK staff</div><div class="value">{{ headcount_uk }}</div><div class="note">£{{ uk_totals.annual|gbp }} annual salaries</div></div>
   <div class="stat"><div class="label">India monthly Basic</div><div class="value">₹{{ totals.basic|inr:0 }}</div><div class="note">Current salaries, full month</div></div>
   <div class="stat"><div class="label">India cost to company</div><div class="value">₹{{ totals.cost|inr:0 }}</div><div class="note">Incl. ₹{{ totals.employer|inr:0 }} employer PF + ESIC</div></div>
   <div class="stat"><div class="label">Leave awaiting approval</div><div class="value"><a href="{% url 'leave_approvals' %}">{{ pending_leave }}</a></div></div>
@@ -44,6 +44,24 @@
       </tbody>
     </table></div>
     <p class="muted" style="font-size:13px;margin-bottom:0">Estimate from current salaries with no unpaid leave. Actual monthly figures are in payroll history.</p>
+  </div>
+
+  <div class="card">
+    <h2>UK salaries by department (GBP)</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Department</th><th class="num">Staff</th><th class="num">Annual</th><th class="num">Monthly</th></tr></thead>
+      <tbody>
+      {% for row in uk_rows %}
+        <tr><td>{{ row.name }}</td><td class="num">{{ row.headcount }}</td><td class="num">£{{ row.annual|gbp }}</td><td class="num">£{{ row.monthly|gbp }}</td></tr>
+      {% empty %}
+        <tr><td colspan="4" class="muted">No UK staff yet.</td></tr>
+      {% endfor %}
+      {% if uk_rows %}
+        <tr class="total"><td>Total</td><td class="num">{{ uk_totals.headcount }}</td><td class="num">£{{ uk_totals.annual|gbp }}</td><td class="num">£{{ uk_totals.monthly|gbp }}</td></tr>
+      {% endif %}
+      </tbody>
+    </table></div>
+    <p class="muted" style="font-size:13px;margin-bottom:0">Salary only, excluding employer NI and pension. {% if uk_totals.with_salary < uk_totals.headcount %}{{ uk_totals.headcount|add:0 }} UK staff, {{ uk_totals.with_salary }} with a salary recorded.{% endif %}</p>
   </div>
 
   <div class="card">

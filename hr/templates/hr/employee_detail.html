@@ -15,6 +15,12 @@
   </div>
 </div>
 
+{% if not e.is_india %}
+<div class="stats">
+  <div class="stat"><div class="label">Annual salary</div><div class="value">{% if current_salary_gbp is not None %}£{{ current_salary_gbp|gbp }}{% else %}—{% endif %}</div><div class="note">{% if current_salary_gbp is not None %}Admins only{% else %}Add it with Record pay / role change{% endif %}</div></div>
+  <div class="stat"><div class="label">Next work anniversary</div><div class="value" style="font-size:18px">{{ anniversary.0|date:"d M Y" }}</div><div class="note">{{ anniversary.1 }} year{{ anniversary.1|pluralize }}</div></div>
+</div>
+{% endif %}
 {% if e.is_india %}
 <div class="stats">
   <div class="stat"><div class="label">Monthly Basic</div><div class="value">₹{{ current_basic|inr:0 }}</div></div>
@@ -71,7 +77,8 @@
             <div><strong>Joined as {{ r.designation }}</strong></div>
             <div class="muted">
               {% if r.department %}{{ r.department.name }}{% endif %}
-              {% if e.is_india and r.basic_monthly is not None %} · ₹{{ r.basic_monthly|inr:0 }}/month{% endif %}
+              {% if r.basic_monthly is not None %} · ₹{{ r.basic_monthly|inr:0 }}/month{% endif %}
+              {% if r.annual_salary_gbp is not None %} · £{{ r.annual_salary_gbp|gbp }}/year{% endif %}
               {% if r.weekly_hours %} · {{ r.weekly_hours|days }} hrs/week{% endif %}
             </div>
           {% else %}
@@ -79,7 +86,7 @@
               <div class="change">
                 <span class="change-label">{{ c.label }}</span>
                 {% if c.is_money %}
-                  <span class="old">₹{{ c.old|inr:0 }}</span> → <strong>₹{{ c.new|inr:0 }}</strong>
+                  <span class="old">{{ c.old|money:c.currency }}</span> → <strong>{{ c.new|money:c.currency }}</strong>
                   {% if c.percent is not None %}<span class="pct {% if c.percent < 0 %}down{% endif %}">{% if c.percent > 0 %}+{% endif %}{{ c.percent }}%</span>{% endif %}
                 {% elif c.label == "Weekly hours" %}
                   <span class="old">{{ c.old|days }}</span> → <strong>{{ c.new|days }}</strong>

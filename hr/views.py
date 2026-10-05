@@ -46,11 +46,14 @@ def home(request):
 def dashboard(request):
     today = timezone.localdate()
     rows, totals = services.current_cost_summary(today)
+    uk_rows, uk_totals = services.uk_salary_summary(today)
     runs = list(PayrollRun.objects.all()[:12])
     history = [(run, services.run_totals(run)) for run in runs]
     active = Employee.objects.exclude(date_left__lt=today)
     return render(request, "hr/dashboard.html", {
         "dept_rows": rows,
+        "uk_rows": uk_rows,
+        "uk_totals": uk_totals,
         "totals": totals,
         "history": history,
         "anniversaries": services.upcoming_anniversaries(30, today),
@@ -104,6 +107,8 @@ def employee_detail(request, pk):
         ctx["balance"] = services.leave_balance(e)
         ctx["advance_outstanding"] = services.advance_outstanding(e)
         ctx["current_basic"] = e.current_basic()
+    else:
+        ctx["current_salary_gbp"] = e.current_annual_salary_gbp()
     return render(request, "hr/employee_detail.html", ctx)
 
 
@@ -120,6 +125,7 @@ def employee_new(request):
         EmploymentRecord.objects.create(
             employee=e, effective_from=e.date_joined, designation=e.designation, department=e.department,
             weekly_hours=form.cleaned_data["weekly_hours"], basic_monthly=form.cleaned_data["basic_monthly"],
+            annual_salary_gbp=form.cleaned_data["annual_salary_gbp"],
             reason="Joined", created_by=request.user,
         )
         audit(request.user, "employee.created", e)
@@ -200,8 +206,7 @@ def _sync_current_role(e):
 def _record_form(request, e, instance, initial=None):
     form = EmploymentRecordForm(request.POST or None, instance=instance, initial=initial or {})
     form.fields["department"].queryset = Department.objects.filter(office=e.office)
-    if e.office == Office.UK:
-        del form.fields["basic_monthly"]
+    del form.fields["basic_monthly" if e.office == Office.UK else "annual_salary_gbp"]
     return form
 
 
@@ -215,6 +220,7 @@ def employment_change_new(request, pk):
         initial = {
             "designation": current.designation, "department": current.department,
             "weekly_hours": current.weekly_hours, "basic_monthly": current.basic_monthly,
+            "annual_salary_gbp": current.annual_salary_gbp,
         }
     form = _record_form(request, e, EmploymentRecord(employee=e), initial)
     if request.method == "POST" and form.is_valid():
@@ -237,7 +243,9 @@ def employment_change_new(request, pk):
 def employment_record_edit(request, pk, record_pk):
     e = get_object_or_404(Employee, pk=pk)
     record = get_object_or_404(EmploymentRecord, pk=record_pk, employee=e)
-    fields = ["effective_from", "designation", "department", "weekly_hours", "basic_monthly", "reason"]
+    fields = [
+        "effective_from", "designation", "department", "weekly_hours", "basic_monthly", "annual_salary_gbp", "reason",
+    ]
     before = {f: getattr(record, f) for f in fields}
     form = _record_form(request, e, record)
     if request.method == "POST" and form.is_valid():
@@ -267,7 +275,8 @@ def employment_record_delete(request, pk, record_pk):
     if e.employment_records.count() == 1:
         messages.error(request, "This is their only history entry. Edit it instead of deleting it.")
         return redirect("employee_detail", pk=e.pk)
-    detail = f"{record.effective_from}: {record.designation}, basic {record.basic_monthly or '—'}, {record.reason}"
+    amount, currency = record.salary
+    detail = f"{record.effective_from}: {record.designation}, salary {amount or '—'} {currency or ''}, {record.reason}"
     record.delete()
     _sync_current_role(e)
     audit(request.user, "employee.history_deleted", e, detail)

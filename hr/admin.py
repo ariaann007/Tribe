@@ -33,7 +33,7 @@ class EmployeeAdmin(admin.ModelAdmin):
 
 @admin.register(EmploymentRecord)
 class EmploymentRecordAdmin(ReadOnlyAdmin):
-    list_display = ["employee", "effective_from", "designation", "basic_monthly", "reason"]
+    list_display = ["employee", "effective_from", "designation", "basic_monthly", "annual_salary_gbp", "reason"]
 
 
 @admin.register(LeaveRequest)

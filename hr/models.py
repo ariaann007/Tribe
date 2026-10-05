@@ -118,6 +118,10 @@ class Employee(models.Model):
         record = self.record_on(timezone.localdate())
         return record.department if record else self.department
 
+    def current_annual_salary_gbp(self):
+        record = self.record_on(timezone.localdate())
+        return record.annual_salary_gbp if record else None
+
     def current_basic(self):
         return self.basic_on(timezone.localdate())
 
@@ -145,7 +149,11 @@ class EmploymentRecord(models.Model):
     weekly_hours = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
     basic_monthly = models.DecimalField(
         "Monthly Basic (INR)", max_digits=12, decimal_places=2, null=True, blank=True,
-        help_text="India staff only. UK salaries are not stored in this system.",
+        help_text="India staff only.",
+    )
+    annual_salary_gbp = models.DecimalField(
+        "Annual salary (GBP)", max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="UK staff only. Visible to admins only.",
     )
     reason = models.CharField(max_length=200, blank=True, help_text="e.g. Joined, Promotion, Annual increment")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
@@ -161,9 +169,20 @@ class EmploymentRecord(models.Model):
         if self.employee_id is None:
             return
         if self.employee.office == Office.UK and self.basic_monthly is not None:
-            raise ValidationError({"basic_monthly": "UK salaries are not stored in this system."})
+            raise ValidationError({"basic_monthly": "UK staff have an annual GBP salary, not an INR Basic."})
         if self.employee.office == Office.INDIA and self.basic_monthly is None:
             raise ValidationError({"basic_monthly": "Basic salary is required for India staff."})
+        if self.employee.office == Office.INDIA and self.annual_salary_gbp is not None:
+            raise ValidationError({"annual_salary_gbp": "India staff are paid a monthly INR Basic."})
+
+    @property
+    def salary(self):
+        """(amount, currency) for whichever salary applies to this office."""
+        if self.basic_monthly is not None:
+            return self.basic_monthly, "INR"
+        if self.annual_salary_gbp is not None:
+            return self.annual_salary_gbp, "GBP"
+        return None, None
 
 
 class LeaveRequest(models.Model):

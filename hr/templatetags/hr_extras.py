@@ -31,6 +31,25 @@ def inr(value, decimals=2):
 
 
 @register.filter
+def gbp(value, decimals=0):
+    """Format a number with standard grouping: 35,000"""
+    if value is None or value == "":
+        return "—"
+    try:
+        return f"{Decimal(value):,.{int(decimals)}f}"
+    except (InvalidOperation, TypeError, ValueError):
+        return value
+
+
+@register.filter
+def money(value, currency):
+    """₹2,90,750 for INR, £35,000 for GBP."""
+    if value is None:
+        return "—"
+    return f"£{gbp(value)}" if currency == "GBP" else f"₹{inr(value, 0)}"
+
+
+@register.filter
 def days(value):
     """1.0 -> 1, 1.5 -> 1.5"""
     if value is None:
