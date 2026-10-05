@@ -1,0 +1,51 @@
+{% extends "hr/base.html" %}
+{% load hr_extras %}
+{% block title %}Import staff{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Import staff from a spreadsheet</h1>
+  <p class="sub">Upload an .xlsx file, check the preview, then confirm. Nothing is saved until you confirm, and nothing at all is saved if any row has a problem.</p></div>
+  <div class="actions"><a class="btn secondary" href="{% url 'staff_import' %}?template=1">Download blank template</a></div>
+</div>
+
+{% if error %}<div class="alert bad">{{ error }}</div>{% endif %}
+
+{% if not result %}
+<div class="card">
+  <form method="post" enctype="multipart/form-data" class="stacked">
+    {% csrf_token %}
+    <div class="field"><label for="id_file">Spreadsheet (.xlsx)</label><input id="id_file" type="file" name="file" accept=".xlsx" required></div>
+    <button class="btn" type="submit">Upload and preview</button>
+  </form>
+  <p class="muted" style="font-size:13px;margin-bottom:0">Salary is the monthly Basic in ₹ for India staff and the annual salary in £ for UK staff. People whose Employee ID is already in the system are skipped.</p>
+</div>
+{% else %}
+<div class="card">
+  <h2>Preview: {{ result.to_create|length }} to add{% if result.existing %}, {{ result.existing|length }} already in the system{% endif %}</h2>
+  {% if result.errors %}
+    <div class="alert bad"><strong>Fix these in the spreadsheet, then upload it again:</strong>
+      <ul style="margin:6px 0 0">{% for e in result.errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+  {% endif %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>Name</th><th>Office</th><th>Designation</th><th class="hide-narrow">Department</th><th>Joined</th><th class="num">Salary</th><th class="hide-narrow">Team lead</th><th></th></tr></thead>
+    <tbody>
+    {% for n, p in result.rows %}
+      <tr>
+        <td>{{ p.employee_code }}</td><td>{{ p.full_name }}</td><td>{% if p.office == "IN" %}India{% else %}UK{% endif %}</td>
+        <td>{{ p.designation }}</td><td class="hide-narrow">{{ p.department }}</td><td>{{ p.date_joined|date:"d/m/Y" }}</td>
+        <td class="num">{% if p.salary is None %}—{% elif p.office == "IN" %}₹{{ p.salary|inr:0 }}/mo{% else %}£{{ p.salary|gbp }}/yr{% endif %}</td>
+        <td class="hide-narrow">{{ p.team_lead_code }}</td>
+        <td>{% if p.employee_code in result.existing %}<span class="badge cancelled">Skip, exists</span>{% else %}<span class="badge published">New</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <div class="actions" style="margin-top:14px">
+    {% if result.ok and result.to_create %}
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="confirm"><button class="btn" type="submit">Confirm and add {{ result.to_create|length }} staff</button></form>
+    {% endif %}
+    <a class="btn secondary" href="{% url 'staff_import' %}">Upload a different file</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

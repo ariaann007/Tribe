@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-head">
   <div><h1>Staff</h1><p class="sub">{{ employees|length }} shown.</p></div>
-  <div class="actions"><a class="btn secondary" href="{% url 'departments' %}">Departments</a><a class="btn" href="{% url 'employee_new' %}">Add employee</a></div>
+  <div class="actions"><a class="btn secondary" href="{% url 'departments' %}">Departments</a><a class="btn secondary" href="{% url 'staff_import' %}">Import from spreadsheet</a><a class="btn" href="{% url 'employee_new' %}">Add employee</a></div>
 </div>
 <div class="card">
   <form method="get" class="actions" style="margin-bottom:12px">

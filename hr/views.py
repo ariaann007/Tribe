@@ -105,6 +105,70 @@ def employee_list(request):
     })
 
 
+MAX_IMPORT_BYTES = 2 * 1024 * 1024
+
+
+@admin_required
+def staff_import(request):
+    """Upload an onboarding spreadsheet, preview it, then confirm."""
+    import base64
+    from io import BytesIO
+
+    from django.http import HttpResponse
+
+    from . import importer
+
+    if request.GET.get("template"):
+        response = HttpResponse(
+            importer.blank_template(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = 'attachment; filename="Staff import template.xlsx"'
+        return response
+
+    session_key = "staff_import_file"
+    result, error = None, None
+    if request.method == "POST" and request.POST.get("action") == "confirm":
+        data = request.session.get(session_key)
+        if not data:
+            messages.error(request, "The upload has expired. Please upload the file again.")
+            return redirect("staff_import")
+        try:
+            result = importer.read_workbook(BytesIO(base64.b64decode(data)))
+        except importer.WorkbookError as exc:
+            error = str(exc)
+        else:
+            if result.ok:
+                try:
+                    created = importer.create(result.to_create, actor=request.user)
+                except ValidationError as exc:
+                    error = f"Nothing was saved: {_error_text(exc)}"
+                else:
+                    request.session.pop(session_key, None)
+                    messages.success(
+                        request, f"Added {len(created)} staff."
+                        + (f" Skipped {len(result.existing)} already in the system." if result.existing else "")
+                    )
+                    return redirect("employee_list")
+    elif request.method == "POST":
+        upload = request.FILES.get("file")
+        if not upload:
+            error = "Choose a spreadsheet to upload."
+        elif not upload.name.lower().endswith(".xlsx"):
+            error = "Upload an Excel .xlsx file."
+        elif upload.size > MAX_IMPORT_BYTES:
+            error = "That file is too large (2 MB maximum)."
+        else:
+            data = upload.read()
+            try:
+                result = importer.read_workbook(BytesIO(data))
+            except importer.WorkbookError as exc:
+                error = str(exc)
+            else:
+                request.session[session_key] = base64.b64encode(data).decode()
+    return render(request, "hr/staff_import.html", {"result": result, "error": error})
+
+
 @admin_required
 def departments(request):
     form = DepartmentForm(request.POST or None)
