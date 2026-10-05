@@ -130,3 +130,10 @@ dl.details dd { margin: 0; }
   body { background: #fff; }
   main { padding: 0; max-width: none; }
 }
+
+/* Narrower screens: menu on its own row, hide secondary table columns. */
+@media (max-width: 960px) {
+  .topbar { padding-top: 8px; padding-bottom: 8px; gap: 8px 16px; }
+  .topbar nav { order: 3; flex-basis: 100%; }
+  .hide-narrow { display: none; }
+}

@@ -233,3 +233,40 @@ class PagesLoad(TestCase):
         e = Employee.objects.get(employee_code="3001")
         self.assertEqual(e.basic_on(date(2026, 10, 1)), D("16000"))
         self.assertEqual(e.employment_records.count(), 1)
+
+
+class DeleteEmployee(TestCase):
+    def setUp(self):
+        self.admin = make_employee("A1", office=Office.UK, role=Role.ADMIN)
+        self.client.login(username="uA1", password=PASSWORD)
+
+    def test_delete_mistake_record(self):
+        e = make_employee("X1")
+        user_id = e.user_id
+        resp = self.client.post(reverse("employee_delete", args=[e.pk]))
+        self.assertRedirects(resp, reverse("employee_list"))
+        self.assertFalse(Employee.objects.filter(pk=e.pk).exists())
+        self.assertFalse(get_user_model().objects.filter(pk=user_id).exists())
+
+    def test_cannot_delete_someone_with_payslips(self):
+        e = make_employee("X2")
+        services.create_run(2026, 9, self.admin.user)
+        self.assertContains(self.client.post(reverse("employee_delete", args=[e.pk])), "set a leaving date")
+        self.assertTrue(Employee.objects.filter(pk=e.pk).exists())
+
+    def test_cannot_delete_self(self):
+        self.client.post(reverse("employee_delete", args=[self.admin.pk]))
+        self.assertTrue(Employee.objects.filter(pk=self.admin.pk).exists())
+
+    def test_staff_list_shows_actions(self):
+        e = make_employee("X3")
+        resp = self.client.get(reverse("employee_list"))
+        self.assertContains(resp, reverse("employee_edit", args=[e.pk]))
+        self.assertContains(resp, reverse("employee_delete", args=[e.pk]))
+
+    def test_non_admin_cannot_delete(self):
+        e = make_employee("X4")
+        other = make_employee("X5")
+        self.client.login(username="uX5", password=PASSWORD)
+        self.assertEqual(self.client.post(reverse("employee_delete", args=[e.pk])).status_code, 403)
+        self.assertTrue(Employee.objects.filter(pk=e.pk).exists())

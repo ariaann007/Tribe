@@ -148,6 +148,41 @@ def employee_edit(request, pk):
 
 
 @admin_required
+def employee_delete(request, pk):
+    e = get_object_or_404(Employee, pk=pk)
+    blockers = []
+    if e.payslips.exists():
+        blockers.append(
+            "They have payslips. Payroll records must be kept, so set a leaving date instead. "
+            "That removes them from the active staff list and from future payroll."
+        )
+    if employee_of(request.user) == e:
+        blockers.append("You can't delete your own record.")
+    if e.team_members.exists():
+        blockers.append(
+            f"They are team lead for {e.team_members.count()} person(s). Give those people a new team lead first."
+        )
+    if request.method == "POST" and not blockers:
+        name = str(e)
+        with transaction.atomic():
+            user = e.user
+            e.delete()
+            if user:
+                user.delete()
+            audit(request.user, "employee.deleted", name)
+        messages.success(request, f"{name} deleted.")
+        return redirect("employee_list")
+    return render(request, "hr/employee_delete.html", {
+        "e": e, "blockers": blockers,
+        "counts": {
+            "employment records": e.employment_records.count(),
+            "leave requests": e.leave_requests.count(),
+            "advances": e.advances.count(),
+        },
+    })
+
+
+@admin_required
 @transaction.atomic
 def employment_change_new(request, pk):
     e = get_object_or_404(Employee, pk=pk)
