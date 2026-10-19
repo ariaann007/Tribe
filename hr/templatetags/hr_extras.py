@@ -56,3 +56,51 @@ def days(value):
         return "—"
     number = Decimal(value).normalize()
     return f"{number:f}"
+
+
+_ONES = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve",
+         "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"]
+_TENS = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"]
+
+
+def _below_thousand(n):
+    words = []
+    if n >= 100:
+        words.append(f"{_ONES[n // 100]} Hundred")
+        n %= 100
+    if n >= 20:
+        words.append(_TENS[n // 10] + (f"-{_ONES[n % 10]}" if n % 10 else ""))
+    elif n:
+        words.append(_ONES[n])
+    return " ".join(words)
+
+
+def indian_number_words(n):
+    """1770082 -> 'Seventeen Lakh Seventy Thousand Eighty-Two' (Indian numbering)."""
+    if n == 0:
+        return "Zero"
+    parts = []
+    for size, label in ((10 ** 7, "Crore"), (10 ** 5, "Lakh"), (10 ** 3, "Thousand")):
+        if n >= size:
+            parts.append(f"{indian_number_words(n // size) if size == 10 ** 7 else _below_thousand(n // size)} {label}")
+            n %= size
+    if n:
+        parts.append(_below_thousand(n))
+    return " ".join(parts)
+
+
+@register.filter
+def inr_words(value):
+    """17670.82 -> 'Rupees Seventeen Thousand Six Hundred Seventy and Eighty-Two Paise Only'"""
+    try:
+        amount = Decimal(value).quantize(Decimal("0.01"))
+    except (InvalidOperation, TypeError, ValueError):
+        return ""
+    if amount < 0:
+        return ""
+    rupees = int(amount)
+    paise = int((amount - rupees) * 100)
+    words = f"Rupees {indian_number_words(rupees)}"
+    if paise:
+        words += f" and {_below_thousand(paise)} Paise"
+    return words + " Only"

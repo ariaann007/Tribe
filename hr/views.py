@@ -675,7 +675,14 @@ def payslip_view(request, pk):
         own = employee_of(request.user)
         if own is None or slip.employee_id != own.pk or slip.status not in (Status.PUBLISHED, Status.SUPERSEDED):
             raise Http404
-    return render(request, "hr/payslip.html", {"slip": slip, "company": settings.COMPANY})
+    earnings, deductions = slip.earning_lines(), slip.deduction_lines()
+    rows = max(len(earnings), len(deductions), 1)
+    return render(request, "hr/payslip.html", {
+        "slip": slip, "company": settings.COMPANY,
+        "earnings": earnings, "deductions": deductions,
+        # Blank rows so both tables are the same height and the totals line up.
+        "earnings_pad": range(rows - len(earnings)), "deductions_pad": range(rows - len(deductions)),
+    })
 
 
 @admin_required

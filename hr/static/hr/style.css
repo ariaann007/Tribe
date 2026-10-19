@@ -111,20 +111,6 @@ dl.details dd { margin: 0; }
   .topbar { padding: 8px 16px; }
 }
 
-/* ---- Payslip ---- */
-.payslip { background: #fff; max-width: 820px; margin: 0 auto; border: 1px solid #333; font-family: Cambria, Georgia, serif; font-size: 15px; }
-.payslip table { border-collapse: collapse; width: 100%; }
-.payslip td, .payslip th { border: 1px solid #bbb; padding: 5px 8px; text-transform: none; letter-spacing: 0; color: #000; font-size: 15px; }
-.payslip .company { text-align: center; font-size: 26px; font-weight: 700; color: var(--brand); padding: 10px; }
-.payslip .title { text-align: center; font-weight: 700; padding: 8px; border-top: 1px solid #333; border-bottom: 1px solid #333; }
-.payslip .logo-cell { text-align: center; font-size: 26px; letter-spacing: .15em; color: #555; font-family: "Segoe UI", sans-serif; }
-.payslip .logo-cell span { color: var(--accent); }
-.payslip .k { font-weight: 700; width: 22%; }
-.payslip .head { background: #ddd3ea; font-weight: 700; }
-.payslip .amt { text-align: right; font-variant-numeric: tabular-nums; }
-.payslip .foot { text-align: center; font-size: 13px; padding: 6px; }
-.payslip .version-note { text-align: center; font-size: 13px; padding: 6px; background: #fff4dc; }
-
 @media print {
   .topbar, .no-print, .messages { display: none !important; }
   body { background: #fff; }

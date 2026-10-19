@@ -354,6 +354,30 @@ class Payslip(models.Model):
     def is_locked(self):
         return self.status in (self.Status.PUBLISHED, self.Status.SUPERSEDED)
 
+    def earning_lines(self):
+        """(label, amount) for the payslip; Basic always, other lines only when non-zero."""
+        lines = [("Basic salary", self.basic)]
+        for label, amount in (("Bonus", self.bonus), ("Incentives", self.incentives), ("Overtime", self.overtime),
+                              ("Other additions", self.other_additions)):
+            if amount:
+                lines.append((label, amount))
+        return lines
+
+    def deduction_lines(self):
+        lines = []
+        if self.lop_amount:
+            day_word = "day" if self.lop_days == 1 else "days"
+            lines.append((f"Unpaid leave ({payroll_days(self.lop_days)} {day_word})", self.lop_amount))
+        if self.pf_applies:
+            lines.append(("Provident Fund (12%)", self.pf_employee))
+        if self.esic_applies:
+            lines.append(("ESIC (0.75%)", self.esic_employee))
+        if self.advance_recovery:
+            lines.append(("Advance recovery", self.advance_recovery))
+        if self.other_deductions:
+            lines.append((self.other_deductions_note or "Other deductions", self.other_deductions))
+        return lines
+
     @property
     def additions_total(self):
         return self.bonus + self.incentives + self.overtime + self.other_additions
@@ -411,6 +435,11 @@ class AuditEvent(models.Model):
 class UserSettings(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="hr_settings")
     must_change_password = models.BooleanField(default=True)
+
+
+def payroll_days(value):
+    """1.0 -> '1', 1.5 -> '1.5'"""
+    return f"{Decimal(value).normalize():f}"
 
 
 def audit(actor, action, target, detail=""):

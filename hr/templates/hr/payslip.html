@@ -1,39 +1,98 @@
 {% extends "hr/base.html" %}
-{% load hr_extras %}
-{% block title %}Payslip {{ slip.run.period_end|date:"M Y" }}{% endblock %}
+{% load hr_extras static %}
+{% block title %}Payslip {{ slip.run.period_end|date:"F Y" }} · {{ slip.employee_name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'hr/payslip.css' %}">{% endblock %}
 {% block content %}
-<div class="actions no-print" style="justify-content:space-between;margin-bottom:12px">
+<div class="slip-toolbar no-print">
   <a href="{% if nav_is_admin %}{% url 'payslip_edit' slip.pk %}{% else %}{% url 'me' %}{% endif %}">← Back</a>
-  <button class="btn" onclick="window.print()">Print / save as PDF</button>
+  <button class="btn" type="button" onclick="window.print()">Download PDF / Print</button>
 </div>
 {% if slip.status != 'published' %}
   <div class="alert no-print {% if slip.status == 'superseded' %}info{% endif %}">
     {% if slip.status == 'superseded' %}This payslip was replaced by a corrected version.{% else %}Preview only. The employee can't see this until it is approved and published.{% endif %}
   </div>
 {% endif %}
-<div class="payslip">
-  <table>
-    <tr><td colspan="4" class="company">{{ company.name }}</td></tr>
-    <tr><td colspan="2">{{ company.address_lines.0 }}<br>{{ company.address_lines.1 }}</td><td colspan="2" class="logo-cell">D<span>E</span>NIZNS</td></tr>
-    <tr><td colspan="4">Email: {{ company.email }}</td></tr>
-    <tr><td colspan="4" class="title">PAYSLIP FOR THE MONTH ENDING {{ slip.run.period_end|date:"j F Y"|upper }}</td></tr>
-    {% if slip.version > 1 %}<tr><td colspan="4" class="version-note">Corrected payslip (version {{ slip.version }}). This replaces the earlier payslip for this month.</td></tr>{% endif %}
-    <tr><td class="k">Employee ID :</td><td>{{ slip.employee_code }}</td><td class="k">Business Unit :</td><td>{{ slip.business_unit }}</td></tr>
-    <tr><td class="k">Employee Name :</td><td>{{ slip.employee_name }}</td><td class="k">Department :</td><td>{{ slip.department }}</td></tr>
-    <tr><td class="k">UAN Number :</td><td>{{ slip.uan }}</td><td class="k">Designation :</td><td>{{ slip.designation }}</td></tr>
-    <tr><td class="k">Aadhaar Number :</td><td>{% if slip.aadhaar_last4 %}XXXX XXXX {{ slip.aadhaar_last4 }}{% endif %}</td><td class="k">PAN Number :</td><td>{{ slip.pan }}</td></tr>
-    <tr><td class="k">Insurance Number :</td><td>{{ slip.esic_ip_number }}</td><td class="k">Paid Leave Remaining :</td><td>{{ slip.leave_balance_after|days }}</td></tr>
-    <tr><td class="k">Total Working Days :</td><td>23</td><td class="k">Paid Leaves :</td><td>{{ slip.paid_leave_applied|days }}</td></tr>
-    <tr><td class="k">Pay period :</td><td>{{ slip.run.period_start|date:"d/m/Y" }} – {{ slip.run.period_end|date:"d/m/Y" }}</td><td class="k">LOP Days :</td><td>{{ slip.lop_days|days }}</td></tr>
-    <tr><td class="head">EARNINGS</td><td class="head amt">AMOUNT</td><td class="head">DEDUCTIONS</td><td class="head amt">AMOUNT</td></tr>
-    <tr><td>Gross Pay</td><td class="amt">{{ slip.basic|inr }}</td><td>LOP</td><td class="amt">{{ slip.lop_amount|inr }}</td></tr>
-    <tr><td>Incentives</td><td class="amt">{{ slip.incentives|inr }}</td><td>PF</td><td class="amt">{{ slip.pf_employee|inr }}</td></tr>
-    <tr><td>Bonus</td><td class="amt">{{ slip.bonus|inr }}</td><td>ESIC</td><td class="amt">{{ slip.esic_employee|inr }}</td></tr>
-    <tr><td>Over Time</td><td class="amt">{{ slip.overtime|inr }}</td><td>Advance Recovery</td><td class="amt">{{ slip.advance_recovery|inr }}</td></tr>
-    <tr><td>Other Additions</td><td class="amt">{{ slip.other_additions|inr }}</td><td>Other Deductions{% if slip.other_deductions_note %} ({{ slip.other_deductions_note }}){% endif %}</td><td class="amt">{{ slip.other_deductions|inr }}</td></tr>
-    <tr><td><strong>Total Earnings</strong></td><td class="amt"><strong>{{ slip.total_earnings|inr }}</strong></td><td><strong>Total Deductions</strong></td><td class="amt"><strong>{{ slip.total_deductions|inr }}</strong></td></tr>
-    <tr><td colspan="2"></td><td><strong>Net Salary</strong></td><td class="amt"><strong>{{ slip.net_pay|inr }}</strong></td></tr>
-    <tr><td colspan="4" class="foot">***This is an electronically generated document, does not require signature***</td></tr>
-  </table>
-</div>
+
+<article class="slip{% if slip.status != 'published' and slip.status != 'superseded' %} is-draft{% endif %}">
+  {% if slip.status != 'published' and slip.status != 'superseded' %}<div class="slip-watermark" aria-hidden="true">DRAFT</div>{% endif %}
+
+  <header class="slip-head">
+    <div class="slip-brand">
+      <div class="slip-logo">D<span>E</span>NIZNS</div>
+      <div class="slip-company">{{ company.name }}</div>
+      <div class="slip-address">{{ company.address_lines|join:", " }} · {{ company.email }}</div>
+    </div>
+    <div class="slip-title">
+      <div class="slip-kicker">Payslip</div>
+      <div class="slip-month">{{ slip.run.period_end|date:"F Y" }}</div>
+      <div class="slip-period">Pay period {{ slip.run.period_start|date:"j M" }} – {{ slip.run.period_end|date:"j M Y" }}</div>
+    </div>
+  </header>
+
+  {% if slip.version > 1 %}<div class="slip-notice">Corrected payslip (version {{ slip.version }}). It replaces the earlier payslip for this month.</div>{% endif %}
+
+  <section class="slip-employee">
+    <div class="slip-person">
+      <div class="slip-name">{{ slip.employee_name }}</div>
+      <div class="slip-role">{{ slip.designation|default:"" }}{% if slip.department %}{% if slip.designation %} · {% endif %}{{ slip.department }}{% endif %}</div>
+    </div>
+    <dl class="slip-facts">
+      <div><dt>Employee ID</dt><dd>{{ slip.employee_code }}</dd></div>
+      {% if slip.employee.date_joined %}<div><dt>Date of joining</dt><dd>{{ slip.employee.date_joined|date:"d M Y" }}</dd></div>{% endif %}
+      {% if slip.business_unit %}<div><dt>Business unit</dt><dd>{{ slip.business_unit }}</dd></div>{% endif %}
+      {% if slip.pan %}<div><dt>PAN</dt><dd>{{ slip.pan }}</dd></div>{% endif %}
+      {% if slip.uan %}<div><dt>UAN (PF)</dt><dd>{{ slip.uan }}</dd></div>{% endif %}
+      {% if slip.esic_ip_number %}<div><dt>ESIC IP no.</dt><dd>{{ slip.esic_ip_number }}</dd></div>{% endif %}
+      {% if slip.aadhaar_last4 %}<div><dt>Aadhaar</dt><dd>XXXX XXXX {{ slip.aadhaar_last4 }}</dd></div>{% endif %}
+    </dl>
+  </section>
+
+  <section class="slip-attendance" aria-label="Attendance">
+    <div><span>Working days</span><strong>23</strong></div>
+    <div><span>Paid leave taken</span><strong>{{ slip.paid_leave_applied|days }}</strong></div>
+    <div><span>Unpaid days (LOP)</span><strong>{{ slip.lop_days|days }}</strong></div>
+    <div><span>Paid leave balance</span><strong>{{ slip.leave_balance_after|days }}</strong></div>
+  </section>
+
+  <section class="slip-money">
+    <table class="slip-table">
+      <thead><tr><th>Earnings</th><th class="amt">Amount (₹)</th></tr></thead>
+      <tbody>
+        {% for label, amount in earnings %}<tr><td>{{ label }}</td><td class="amt">{{ amount|inr }}</td></tr>{% endfor %}
+        {% for _ in earnings_pad %}<tr class="pad"><td>&nbsp;</td><td></td></tr>{% endfor %}
+      </tbody>
+      <tfoot><tr><td>Total earnings</td><td class="amt">{{ slip.total_earnings|inr }}</td></tr></tfoot>
+    </table>
+
+    <table class="slip-table">
+      <thead><tr><th>Deductions</th><th class="amt">Amount (₹)</th></tr></thead>
+      <tbody>
+        {% for label, amount in deductions %}<tr><td>{{ label }}</td><td class="amt">{{ amount|inr }}</td></tr>
+        {% empty %}<tr><td class="muted">No deductions this month</td><td class="amt">0.00</td></tr>{% endfor %}
+        {% for _ in deductions_pad %}{% if deductions %}<tr class="pad"><td>&nbsp;</td><td></td></tr>{% endif %}{% endfor %}
+      </tbody>
+      <tfoot><tr><td>Total deductions</td><td class="amt">{{ slip.total_deductions|inr }}</td></tr></tfoot>
+    </table>
+  </section>
+
+  <section class="slip-net">
+    <div>
+      <div class="slip-net-label">Net pay for {{ slip.run.period_end|date:"F Y" }}</div>
+      <div class="slip-net-words">{{ slip.net_pay|inr_words }}</div>
+    </div>
+    <div class="slip-net-amount">₹{{ slip.net_pay|inr }}</div>
+  </section>
+
+  {% if slip.pf_employer or slip.esic_employer %}
+  <p class="slip-employer">
+    Paid by Denizns on top of your salary (not deducted from your pay):
+    {% if slip.pf_employer %}employer PF ₹{{ slip.pf_employer|inr }}{% endif %}{% if slip.pf_employer and slip.esic_employer %} · {% endif %}{% if slip.esic_employer %}employer ESIC ₹{{ slip.esic_employer|inr }}{% endif %}.
+  </p>
+  {% endif %}
+
+  <footer class="slip-foot">
+    <span>This is a system-generated payslip and does not need a signature.</span>
+    <span>{% if slip.published_at %}Issued {{ slip.published_at|date:"d M Y" }} · {% endif %}Questions: {{ company.email }}</span>
+  </footer>
+</article>
 {% endblock %}
