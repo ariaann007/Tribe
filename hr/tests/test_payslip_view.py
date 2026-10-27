@@ -30,7 +30,7 @@ class PayslipDocument(TestCase):
         self.assertContains(page, "Unpaid leave (1 day)")
         self.assertContains(page, "Provident Fund (12%)")
         self.assertContains(page, "Rupees")
-        self.assertContains(page, "DRAFT")  # not yet published
+        self.assertNotContains(page, "DRAFT")
 
     def test_tables_padded_to_equal_height(self):
         page = self.client.get(reverse("payslip_view", args=[self.slip.pk]))
@@ -38,7 +38,8 @@ class PayslipDocument(TestCase):
         self.assertEqual(earnings + len(page.context["earnings_pad"]),
                          deductions + len(page.context["deductions_pad"]))
 
-    def test_no_watermark_once_published(self):
+    def test_no_watermark_before_or_after_publishing(self):
+        self.assertNotContains(self.client.get(reverse("payslip_view", args=[self.slip.pk])), "slip-watermark")
         services.approve(self.slip, self.admin.user)
         services.publish_approved(self.slip.run, self.admin.user)
         self.assertNotContains(self.client.get(reverse("payslip_view", args=[self.slip.pk])), "slip-watermark")

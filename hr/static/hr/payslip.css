@@ -16,11 +16,6 @@
 }
 .slip::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 6px; background: linear-gradient(90deg, var(--brand), var(--accent)); }
 
-.slip-watermark {
-  position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%) rotate(-24deg);
-  font-size: 120px; font-weight: 800; letter-spacing: .12em; color: rgba(214, 51, 108, .08); pointer-events: none;
-}
-
 .slip-head { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; padding-bottom: 20px; border-bottom: 1px solid var(--slip-line); }
 .slip-logo { font-size: 28px; font-weight: 300; letter-spacing: .2em; color: #4b4453; line-height: 1; }
 .slip-logo span { color: var(--accent); font-weight: 400; }

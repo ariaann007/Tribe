@@ -13,8 +13,7 @@
   </div>
 {% endif %}
 
-<article class="slip{% if slip.status != 'published' and slip.status != 'superseded' %} is-draft{% endif %}">
-  {% if slip.status != 'published' and slip.status != 'superseded' %}<div class="slip-watermark" aria-hidden="true">DRAFT</div>{% endif %}
+<article class="slip">
 
   <header class="slip-head">
     <div class="slip-brand">
